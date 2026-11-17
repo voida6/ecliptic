@@ -20,7 +20,7 @@ Until it is listed, BRAT installs it straight from this repository and keeps it 
 
 1. Install **Obsidian42 - BRAT** from Community plugins and turn it on.
 2. Run the command "BRAT: Add a beta plugin for testing".
-3. Paste the repository URL: `https://github.com/<owner>/ecliptic`
+3. Paste the repository URL: `https://github.com/voida6/ecliptic`
 4. Turn on Ecliptic under Community plugins.
 
 ### 3. Manual

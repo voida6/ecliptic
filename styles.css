@@ -1,0 +1,1625 @@
+.workspace-leaf-content[data-type="ecliptic-home"] .view-content.ecl-view {
+  padding: 0;
+  overflow: hidden;
+  background: var(--ecl-sky, var(--ecl-bg, rgb(13, 13, 16)));
+  position: relative;
+}
+
+.ecl-host { position: relative; overflow: hidden; }
+.ecl-canvas { display: block; position: absolute; inset: 0; touch-action: none; }
+
+.ecl-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  min-width: 150px;
+  max-width: 240px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(var(--ecl-ink), 0.22);
+  font-family: "Iowan Old Style", "Source Serif 4", "Source Serif Pro", "Palatino Linotype", Georgia, serif;
+  color: rgba(var(--ecl-ink), 0.95);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+  text-shadow: 0 0 10px var(--ecl-bg), 0 0 3px var(--ecl-bg);
+}
+.ecl-card.is-on { opacity: 1; pointer-events: auto; }
+.ecl-card.is-today { border-left-color: rgba(var(--ecl-accent), 0.5); }
+
+.ecl-card-title { font-size: 1.35em; line-height: 1.15; letter-spacing: 0.01em; }
+.ecl-card.is-today .ecl-card-title { color: rgb(var(--ecl-accent)); }
+/* The section's subfolders: the satellites circling its moon. */
+.ecl-card-subs { margin-top: 3px; font-size: 0.68em; letter-spacing: 0.16em; text-transform: uppercase; line-height: 1.5; color: rgba(var(--ecl-ink), 0.45); }
+.ecl-card-notes { display: flex; flex-direction: column; gap: 1px; margin-top: 0.45em; font-size: 0.92em; }
+.ecl-card-note {
+  color: rgba(var(--ecl-ink), 0.68);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ecl-card-note:hover { color: rgb(var(--ecl-accent)); }
+.ecl-card-empty { color: rgba(var(--ecl-ink), 0.4); font-style: italic; }
+.ecl-card-meta {
+  margin-top: 0.6em;
+  font-size: 0.68em;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(var(--ecl-ink), 0.38);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ecl-card { transition: none; }
+}
+
+/* ---- Ecliptic view: orbit and landing layers ----------------------
+   Opening a page flies the camera in toward the clicked dot (drawn by
+   the scene, so it stays sharp) while the orbit fades and the page rises
+   in; closing runs the same transition backwards. */
+.ecl-view {
+  --ecl-ink: 232, 226, 212;
+  --ecl-accent: 232, 190, 110;
+    outline: none;
+}
+.ecl-orbit, .ecl-landing { position: absolute; inset: 0; }
+/* Keyboard access (R1): the moon buttons on Home are real buttons, visually hidden (the canvas draws their focus ring); everything a
+   click does on a page can be reached with Tab, and focus shows as a hairline in the world's gold. */
+.ecl-kb { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.ecl-kb .ecl-kb-btn { position: static; width: 1px; height: 1px; }
+.ecl-view :is([data-ecl-key], .ecl-landing button, .ecl-landing [role="checkbox"], .ecl-landing a[href], .ecl-lightnote button, .ecl-dial-chip, .ecl-dial button):focus-visible {
+  outline: 1px solid rgba(var(--ecl-accent, 232,190,110), .9); outline-offset: 3px; border-radius: 2px; }
+/* The landing pages sit on the world's own sky, like the orbit does. */
+.ecl-view { --ecl-bg: rgb(13, 13, 16); }
+.ecl-orbit { transition: opacity 500ms ease; }
+.ecl-landing {
+  opacity: 0; visibility: hidden; transform: scale(.975);
+  overflow-y: auto; overflow-x: hidden;
+  transition: opacity 500ms ease 0ms, transform 700ms cubic-bezier(.2, .7, .2, 1) 0ms, visibility 0s linear 600ms;
+  font-family: var(--font-text-override, "Iowan Old Style"), "Source Serif 4", "Source Serif Pro", "Palatino Linotype", Georgia, serif; color: rgba(var(--ecl-ink), .92); /* serif in dark and light alike: --font-text goes sans when the theme is not applied */
+}
+.ecl-view.is-landing .ecl-orbit { opacity: 0; pointer-events: none; transition: opacity 420ms ease 480ms; }
+.ecl-view.is-landing .ecl-landing {
+  opacity: 1; visibility: visible; transform: none;
+  transition: opacity 650ms ease 520ms, transform 1000ms cubic-bezier(.2, .7, .2, 1) 450ms, visibility 0s;
+}
+.ecl-view.is-landing .ecl-art { transform: none; opacity: 1; }
+.ecl-art { transform: scale(.7); opacity: 0; transition: transform 1300ms cubic-bezier(.2, .7, .2, 1) 420ms, opacity 800ms ease 480ms; transform-origin: 62% 46%; }
+.ecl-view.is-instant .ecl-orbit, .ecl-view.is-instant .ecl-landing, .ecl-view.is-instant .ecl-art { transition: none !important; }
+.ecl-view.is-leaving .ecl-landing, .ecl-view.is-leaving .ecl-orbit { opacity: 0 !important; transition: opacity 180ms ease !important; }
+/* Page to page: a quick cross-fade. */
+.ecl-view.is-landing.is-swapping .ecl-landing { opacity: 0; transform: translateY(6px); transition: opacity 200ms ease, transform 200ms ease; }
+
+.ecl-caps { text-transform: uppercase; letter-spacing: .2em; font-size: 10.5px; color: rgba(var(--ecl-ink), .38); }
+.ecl-top { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; padding: 28px 40px 0; }
+.ecl-back { cursor: pointer; text-decoration: none; color: rgba(var(--ecl-ink), .6); }
+.ecl-back:hover { color: rgb(var(--ecl-accent)); }
+.ecl-back-mark { color: rgb(var(--ecl-accent)); margin-right: 8px; font-size: 14px; letter-spacing: 0; }
+
+.ecl-hero { position: relative; min-height: 470px; height: 56vh; margin: 0 7.5%; }
+.ecl-art { position: absolute; right: -4%; top: -10px; pointer-events: none; }
+.ecl-art-canvas { display: block; }
+/* Moons over the art: a dot with its label to the left, both clickable. */
+.ecl-moon {
+  position: absolute; width: 24px; height: 24px; margin: -12px 0 0 -12px; padding: 0;
+  background: none !important; border: none; box-shadow: none !important; border-radius: 50%;
+  cursor: pointer; pointer-events: auto;
+}
+.ecl-moon::before {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
+  border-radius: 50%; background: rgba(var(--ecl-ink), .85); transition: transform 160ms ease, background 160ms ease;
+}
+.ecl-moon::after {
+  content: ""; position: absolute; inset: 2px; border-radius: 50%; border: 1px solid rgba(var(--ecl-accent), .0);
+  transition: border-color 160ms ease, inset 160ms ease;
+}
+.ecl-moon-label {
+  position: absolute; right: 30px; top: 50%; transform: translateY(-50%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: rgba(var(--ecl-ink), .5); transition: color 160ms ease;
+}
+.ecl-moon-label.is-covered { opacity: 0; transition: opacity 160ms ease, color 160ms ease; }
+.ecl-moon:hover .ecl-moon-label.is-covered { opacity: 1; }
+.ecl-moon:hover::before { background: rgb(var(--ecl-accent)); transform: scale(1.3); }
+.ecl-moon:hover::after { border-color: rgba(var(--ecl-accent), .55); inset: 0; }
+.ecl-moon:hover .ecl-moon-label { color: rgb(var(--ecl-accent)); }
+.ecl-moon[disabled] { cursor: default; }
+.ecl-col-head.is-link { cursor: pointer; }
+.ecl-col-head.is-link:hover .ecl-caps { color: rgb(var(--ecl-accent)); }
+.ecl-hero-text { position: relative; z-index: 1; padding-top: 9vh; max-width: 560px; }
+.ecl-title { font-weight: 400; font-size: clamp(64px, 7vw, 104px); line-height: 1; margin: 14px 0 22px; letter-spacing: -.01em; color: rgba(var(--ecl-ink), .95); border: none; }
+.ecl-lede { font-size: 20px; line-height: 1.5; font-style: italic; color: rgba(var(--ecl-ink), .72); margin: 0; max-width: 30em; }
+.ecl-stats { display: flex; gap: 34px; margin-top: 28px; }
+.ecl-stats > div { display: flex; flex-direction: column; }
+.ecl-stat { font-size: 26px; line-height: 1.15; color: rgba(var(--ecl-ink), .92); font-variant-numeric: lining-nums; }
+.ecl-overview { display: inline-block; margin-top: 26px; cursor: pointer; text-decoration: none; }
+.ecl-overview:hover { color: rgb(var(--ecl-accent)); }
+
+.ecl-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0 56px; margin: 10px 7.5% 80px; }
+.ecl-col { border-top: 1px solid rgba(var(--ecl-ink), .1); padding-top: 18px; min-width: 0; }
+.ecl-col-head { display: flex; align-items: center; gap: 10px; }
+.ecl-col-head i { width: 6px; height: 6px; border-radius: 50%; background: rgba(var(--ecl-ink), .75); }
+.ecl-col-title { font-weight: 400; font-size: 21px; line-height: 1.25; margin: 8px 0 14px; color: rgba(var(--ecl-ink), .92); }
+.ecl-col-title.is-link { cursor: pointer; }
+.ecl-col-title.is-link:hover { color: rgb(var(--ecl-accent)); }
+.ecl-rows { margin-top: 14px; }
+.ecl-row { display: grid; grid-template-columns: 64px 1fr; gap: 10px; padding: 4px 0; font-size: 14px; color: rgba(var(--ecl-ink), .82); }
+.ecl-row.is-link { cursor: pointer; }
+.ecl-row.is-link:hover .ecl-what { color: rgb(var(--ecl-accent)); }
+.ecl-when { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: rgba(var(--ecl-ink), .4); padding-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ecl-when.is-soon { color: rgb(var(--ecl-accent)); }
+.ecl-what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color 120ms; }
+.ecl-empty { font-size: 13px; font-style: italic; color: rgba(var(--ecl-ink), .52); }
+
+/* ---- Immersive: Ecliptic fills the window (desktop) --------------- */
+body.ecl-immersive .workspace-ribbon,
+body.ecl-immersive .workspace-split.mod-left-split,
+body.ecl-immersive .workspace-split.mod-right-split,
+body.ecl-immersive .workspace-split.mod-left-split + .workspace-leaf-resize-handle,
+body.ecl-immersive .status-bar,
+body.ecl-immersive .workspace-leaf-content[data-type="ecliptic-home"] > .view-header { display: none !important; }
+body.ecl-immersive .workspace-split.mod-root > .workspace-leaf-resize-handle { display: none; }
+/* Tabs and window buttons stay reachable: they fade in when the pointer
+   reaches the top edge. */
+body.ecl-immersive .workspace-tab-header-container {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 10;
+  background: transparent !important; border: none;
+  opacity: 0; transition: opacity 250ms ease;
+}
+body.ecl-immersive .workspace-tab-header-container:hover { opacity: 1; background: var(--background-primary) !important; }
+body.ecl-immersive .workspace-tabs.mod-top { position: relative; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Reduced motion: a short cross-fade and nothing else. */
+  .ecl-orbit, .ecl-landing, .ecl-art { transition: opacity 180ms ease !important; transform: none !important; }
+}
+
+/* Window buttons sit top-right in immersive mode; keep the date clear. */
+body.ecl-immersive .ecl-top { padding-right: 160px; }
+
+/* ---- Phone: the dial's card --------------------------------------
+   The orbit turns a section at a time; the front one's card sits below
+   it. The whole card is the tap target. */
+.ecl-dial {
+  position: absolute; left: 20px; right: 20px; top: 380px; height: 270px; box-sizing: border-box; z-index: 2; /* top and height are set from the scene */
+  display: flex; flex-direction: column; align-items: flex-start; text-align: left; overflow: hidden;
+  padding: 16px 0 14px; border: 0; border-top: 1px solid rgba(var(--ecl-ink), .14); border-radius: 0; cursor: pointer;
+  background: none; box-shadow: none;
+  font-family: var(--font-text-override, "Iowan Old Style"), "Source Serif 4", "Source Serif Pro", "Palatino Linotype", Georgia, serif; color: rgba(var(--ecl-ink), .92); /* serif in dark and light alike: --font-text goes sans when the theme is not applied */
+  transition: opacity 200ms ease; -webkit-tap-highlight-color: transparent; touch-action: none;
+}
+.ecl-dial:active .ecl-dial-title { color: rgb(var(--ecl-accent)); }
+.ecl-dial.is-in > * { animation: ecl-dial-in 280ms cubic-bezier(.2, .7, .2, 1); }
+@keyframes ecl-dial-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+.ecl-dial-num { text-transform: uppercase; letter-spacing: .2em; font-size: 10px; color: rgba(var(--ecl-ink), .42); }
+.ecl-dial-title {
+  margin: 6px 0 4px; font-size: 38px; line-height: 1.05; color: rgba(var(--ecl-ink), .96); transition: color 150ms ease;
+}
+.ecl-dial-title.is-date { font-size: 30px; line-height: 1.15; margin: 4px 0 2px; }
+.ecl-dial-title.is-date + .ecl-dial-rows { margin-top: 2px; }
+.ecl-dial-lede { font-style: italic; font-size: 14px; line-height: 1.4; color: rgba(var(--ecl-ink), .7); max-width: 300px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ecl-dial-meta { margin-top: 6px; text-transform: uppercase; letter-spacing: .16em; font-size: 9px; color: rgba(var(--ecl-ink), .4); }
+.ecl-dial-rows { width: 100%; margin-top: 12px; text-align: left; }
+.ecl-dial-row { display: grid; grid-template-columns: 52px 1fr; gap: 8px; align-items: baseline; padding: 9px 0; font-size: 14px;
+  border-top: 1px solid rgba(var(--ecl-ink), .09); color: rgba(var(--ecl-ink), .84); }
+.ecl-dial-row:active .ecl-dial-what { color: rgb(var(--ecl-accent)); }
+.ecl-dial-when { text-transform: uppercase; letter-spacing: .14em; font-size: 9px; color: rgba(var(--ecl-ink), .4); white-space: nowrap; }
+.ecl-dial-what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecl-dial-more { font-size: 13.5px; letter-spacing: .02em; color: rgb(var(--ecl-accent)); padding: 10px 0 4px; text-align: left; font-family: var(--font-interface, system-ui); }
+.ecl-dial-empty { font-style: italic; font-size: 13px; color: rgba(var(--ecl-ink), .52); padding: 9px 0; text-align: left; }
+@media (prefers-reduced-motion: reduce) { .ecl-dial.is-in > * { animation: none; } }
+
+/* ---- Phone: landing pages stack into one column ----------------- */
+.ecl-view.is-dial .ecl-top { padding: 16px 20px 0; }
+.ecl-landing.is-compact .ecl-top { padding: 16px 20px 0; }
+.ecl-view.is-dial .ecl-hero { height: auto; min-height: 0; margin: 0 20px; display: flex; flex-direction: column; }
+.ecl-landing.is-compact .ecl-hero { height: auto; min-height: 0; margin: 0 20px; display: flex; flex-direction: column; }
+.ecl-view.is-dial .ecl-art { position: relative; right: auto; top: 0; margin: 0 -20px; }
+.ecl-landing.is-compact .ecl-art { position: relative; right: auto; top: 0; margin: 0 -20px; }
+.ecl-view.is-dial .ecl-hero-text { padding-top: 4px; max-width: none; }
+.ecl-landing.is-compact .ecl-hero-text { padding-top: 4px; max-width: none; }
+.ecl-view.is-dial .ecl-title { font-size: 52px; margin: 8px 0 12px; }
+.ecl-landing.is-compact .ecl-title { font-size: 52px; margin: 8px 0 12px; }
+.ecl-view.is-dial .ecl-lede { font-size: 16px; }
+.ecl-landing.is-compact .ecl-lede { font-size: 16px; }
+.ecl-view.is-dial .ecl-stats { gap: 24px; margin-top: 18px; }
+.ecl-landing.is-compact .ecl-stats { gap: 24px; margin-top: 18px; }
+.ecl-view.is-dial .ecl-stat { font-size: 21px; }
+.ecl-landing.is-compact .ecl-stat { font-size: 21px; }
+.ecl-view.is-dial .ecl-cols { grid-template-columns: 1fr; gap: 26px; margin: 26px 20px 60px; }
+.ecl-landing.is-compact .ecl-cols { grid-template-columns: 1fr; gap: 26px; margin: 26px 20px 60px; }
+.ecl-view.is-dial .ecl-row { padding: 8px 0; font-size: 15px; }
+.ecl-landing.is-compact .ecl-row { padding: 8px 0; font-size: 15px; }
+.ecl-view.is-dial .ecl-moon { width: 44px; height: 44px; margin: -22px 0 0 -22px; }
+.ecl-landing.is-compact .ecl-moon { width: 44px; height: 44px; margin: -22px 0 0 -22px; }
+.ecl-view.is-dial .ecl-moon-label { right: 38px; }
+.ecl-landing.is-compact .ecl-moon-label { right: 38px; }
+.ecl-view.is-dial .ecl-landing.is-home { display: block; overflow-y: auto; }
+/* Rows with no date column (the Today note, folder note lists) use the full width. */
+.ecl-row:has(.ecl-when:empty) { grid-template-columns: 1fr; }
+
+/* ---- Theme the whole app (dark mode only) ---------------------------
+   main.js publishes the current world's four tokens on body and adds
+   .ecl-themed, only while Obsidian is in dark mode:
+     --ecl-t-ground     the near-black ground, hex
+     --ecl-t-ink        the off-white ink, an r,g,b triplet used at opacity steps
+     --ecl-t-signal     the one signal colour, hex (--ecl-t-signal-rgb is its r,g,b)
+     --ecl-t-warn       the warning red, hex
+   Everything below only sets Obsidian's own CSS variables, so removing the
+   class (or the plugin) puts the user's theme back. Light mode is never
+   touched. Ink steps: 100% headings, 90% text, 70% muted, 55% faint, lines
+   at 8 to 15%. */
+body.ecl-themed.theme-dark {
+  color-scheme: dark;
+  --ecl-ground-2: color-mix(in srgb, rgb(var(--ecl-t-ink)) 2.5%, var(--ecl-t-ground));
+  --ecl-hair: rgba(var(--ecl-t-ink), 0.10);
+  --ecl-hair-strong: rgba(var(--ecl-t-ink), 0.15);
+
+  /* Surfaces: the ground everywhere, the sidebars a hair lighter. */
+  --background-primary: var(--ecl-t-ground);
+  --background-primary-alt: var(--ecl-ground-2);
+  --background-secondary: var(--ecl-ground-2);
+  --background-secondary-alt: var(--ecl-t-ground);
+  --background-modifier-border: var(--ecl-hair);
+  --background-modifier-border-hover: var(--ecl-hair-strong);
+  --background-modifier-border-focus: rgba(var(--ecl-t-signal-rgb), 0.6);
+  --background-modifier-hover: rgba(var(--ecl-t-ink), 0.05);
+  --background-modifier-active-hover: rgba(var(--ecl-t-ink), 0.09);
+  --background-modifier-form-field: rgba(var(--ecl-t-ink), 0.04);
+  --background-modifier-cover: color-mix(in srgb, var(--ecl-t-ground) 70%, transparent);
+  --background-modifier-message: var(--ecl-ground-2);
+  --background-modifier-error: var(--ecl-t-warn);
+  --background-modifier-error-hover: var(--ecl-t-warn);
+  --divider-color: var(--ecl-hair);
+  --titlebar-background: var(--ecl-t-ground);
+  --titlebar-background-focused: var(--ecl-t-ground);
+  --titlebar-text-color: rgba(var(--ecl-t-ink), 0.55);
+  --titlebar-text-color-focused: rgba(var(--ecl-t-ink), 0.9);
+  --tab-container-background: var(--ecl-t-ground);
+  --tab-background-active: var(--ecl-t-ground);
+  --tab-text-color: rgba(var(--ecl-t-ink), 0.68);
+  --tab-text-color-focused: rgba(var(--ecl-t-ink), 0.7);
+  --tab-text-color-focused-active: rgba(var(--ecl-t-ink), 0.9);
+  --tab-text-color-focused-active-current: rgb(var(--ecl-t-ink));
+  --tab-outline-color: var(--ecl-hair);
+  --ribbon-background: var(--ecl-t-ground);
+  --ribbon-background-collapsed: var(--ecl-t-ground);
+  --status-bar-background: var(--ecl-t-ground);
+  --status-bar-border-color: var(--ecl-hair);
+  --status-bar-text-color: rgba(var(--ecl-t-ink), 0.68);
+  --modal-background: var(--ecl-ground-2);
+  --modal-border-color: var(--ecl-hair-strong);
+  --menu-background: var(--ecl-ground-2);
+  --menu-border-color: var(--ecl-hair-strong);
+  --prompt-border-color: var(--ecl-hair-strong);
+  --popover-background: var(--ecl-ground-2);
+  --background-modifier-box-shadow: rgba(0, 0, 0, 0.5);
+  --code-background: color-mix(in srgb, rgb(var(--ecl-t-ink)) 4%, var(--ecl-t-ground)); /* opaque, so stars do not show inside code boxes (ON2 A6) */
+  --table-border-color: var(--ecl-hair-strong);
+  --table-header-background: color-mix(in srgb, rgb(var(--ecl-t-ink)) 4%, var(--ecl-t-ground));
+  --table-header-background-hover: rgba(var(--ecl-t-ink), 0.07);
+  --embed-background: rgba(var(--ecl-t-ink), 0.03);
+  --blockquote-background-color: transparent;
+  --callout-border-opacity: 0.35;
+  --table-header-color: rgba(var(--ecl-t-ink), 0.82);
+  --input-shadow: inset 0 0 0 1px var(--ecl-hair);
+  --input-shadow-hover: inset 0 0 0 1px var(--ecl-hair-strong);
+
+  /* Text */
+  --text-normal: rgba(var(--ecl-t-ink), 0.9);
+  --text-muted: rgba(var(--ecl-t-ink), 0.7);
+  --text-faint: rgba(var(--ecl-t-ink), 0.66);
+  --text-on-accent: var(--ecl-t-ground);
+  --text-on-accent-inverted: var(--ecl-t-ground);
+  --text-error: var(--ecl-t-warn);
+  --text-success: var(--ecl-t-signal);
+  --text-warning: var(--ecl-t-warn);
+  --h1-color: rgb(var(--ecl-t-ink));
+  --h2-color: rgb(var(--ecl-t-ink));
+  --h3-color: rgb(var(--ecl-t-ink));
+  --h4-color: rgb(var(--ecl-t-ink));
+  --h5-color: rgb(var(--ecl-t-ink));
+  --h6-color: rgb(var(--ecl-t-ink));
+  --bold-color: rgb(var(--ecl-t-ink));
+  --italic-color: rgba(var(--ecl-t-ink), 0.9);
+  --code-normal: rgba(var(--ecl-t-ink), 0.88);
+  --code-comment: rgba(var(--ecl-t-ink), 0.55);
+  --code-punctuation: rgba(var(--ecl-t-ink), 0.7);
+  --code-property: color-mix(in srgb, var(--ecl-t-signal) 60%, rgb(var(--ecl-t-ink)));
+  --code-keyword: var(--ecl-t-signal);
+  --code-function: var(--ecl-t-signal);
+  --code-string: color-mix(in srgb, var(--ecl-t-signal) 50%, rgb(var(--ecl-t-ink)));
+  --code-value: color-mix(in srgb, var(--ecl-t-signal) 50%, rgb(var(--ecl-t-ink)));
+  --code-tag: var(--ecl-t-signal);
+  --code-important: var(--ecl-t-warn);
+  --icon-color: rgba(var(--ecl-t-ink), 0.5);
+  --icon-color-hover: rgba(var(--ecl-t-ink), 0.9);
+  --icon-color-active: var(--ecl-t-signal);
+  --icon-color-focused: rgba(var(--ecl-t-ink), 0.9);
+  --nav-item-color: rgba(var(--ecl-t-ink), 0.7);
+  --nav-item-color-hover: rgba(var(--ecl-t-ink), 0.9);
+  --nav-item-color-active: var(--ecl-t-signal);
+  --nav-item-color-selected: rgba(var(--ecl-t-ink), 0.9);
+  --nav-item-background-hover: rgba(var(--ecl-t-ink), 0.05);
+  --nav-item-background-active: rgba(var(--ecl-t-ink), 0.07);
+  --nav-item-background-selected: rgba(var(--ecl-t-ink), 0.07);
+  --nav-indentation-guide-color: var(--ecl-hair);
+  --indentation-guide-color: var(--ecl-hair);
+  --indentation-guide-color-active: var(--ecl-hair-strong);
+  --hr-color: var(--ecl-hair-strong);
+  --blockquote-border-color: rgba(var(--ecl-t-signal-rgb), 0.6);
+  --blockquote-color: rgba(var(--ecl-t-ink), 0.7);
+  --checkbox-color: var(--ecl-t-signal);
+  --checkbox-border-color: rgba(var(--ecl-t-ink), 0.5);
+  --checkbox-marker-color: var(--ecl-t-ground);
+  --checklist-done-color: rgba(var(--ecl-t-ink), 0.55);
+  --link-unresolved-color: rgba(var(--ecl-t-ink), 0.7);
+  --link-unresolved-decoration-color: rgba(var(--ecl-t-signal-rgb), 0.4);
+  --tag-color: var(--ecl-t-signal);
+  --tag-background: rgba(var(--ecl-t-signal-rgb), 0.1);
+  --tag-background-hover: rgba(var(--ecl-t-signal-rgb), 0.18);
+  --tag-border-width: 1px;
+  --tag-border-color: rgba(var(--ecl-t-signal-rgb), 0.35);
+  --tag-border-color-hover: rgba(var(--ecl-t-signal-rgb), 0.6);
+
+  /* Signal: accents, links, tags, checkboxes */
+  --color-accent: var(--ecl-t-signal);
+  --color-accent-1: var(--ecl-t-signal);
+  --color-accent-2: var(--ecl-t-signal);
+  --color-accent-hsl: initial;
+  --interactive-accent: var(--ecl-t-signal);
+  --interactive-accent-hover: var(--ecl-t-signal);
+  --interactive-normal: rgba(var(--ecl-t-ink), 0.06);
+  --interactive-hover: rgba(var(--ecl-t-ink), 0.1);
+  --text-accent: var(--ecl-t-signal);
+  --text-accent-hover: var(--ecl-t-signal);
+  --text-selection: rgba(var(--ecl-t-signal-rgb), 0.25);
+  --text-highlight-bg: rgba(var(--ecl-t-signal-rgb), 0.22);
+  --link-color: var(--ecl-t-signal);
+  --link-color-hover: var(--ecl-t-signal);
+  --link-external-color: var(--ecl-t-signal);
+  --link-external-color-hover: var(--ecl-t-signal);
+
+  /* Scrollbars */
+  --scrollbar-bg: transparent;
+  --scrollbar-thumb-bg: rgba(var(--ecl-t-ink), 0.12);
+  --scrollbar-active-thumb-bg: rgba(var(--ecl-t-ink), 0.24);
+
+  /* Type and shape: serif headings, softer corners */
+  --font-text-theme: "Iowan Old Style", "Source Serif 4", "Source Serif Pro", "Palatino Linotype", Georgia, serif;
+  --h1-weight: 500;
+  --h2-weight: 500;
+  --h3-weight: 500;
+  --radius-s: 3px;
+  --radius-m: 6px;
+  --radius-l: 10px;
+}
+
+/* The Ecliptic pane is always a night sky, in dark and light Obsidian alike, so its header joins the sky. */
+.workspace-leaf-content[data-type="ecliptic-home"] .view-header {
+  --background-primary: var(--ecl-top, rgb(13, 13, 16));
+  --text-normal: rgba(var(--ecl-ink), 0.9);
+  --text-muted: rgba(var(--ecl-ink), 0.7);
+  --text-faint: rgba(var(--ecl-ink), 0.5);
+  --icon-color: rgba(var(--ecl-ink), 0.6);
+  --icon-color-hover: rgba(var(--ecl-ink), 0.95);
+  --background-modifier-hover: rgba(var(--ecl-ink), 0.1);
+  background: var(--ecl-top, transparent) !important;
+  border-bottom-color: transparent;
+}
+
+/* Immersive: the window buttons float over the night sky. */
+body.ecl-immersive.ecl-themed.theme-dark {
+  --titlebar-background: transparent;
+  --titlebar-background-focused: transparent;
+  --titlebar-text-color: rgba(var(--ecl-t-ink), 0.6);
+  --titlebar-text-color-focused: rgba(var(--ecl-t-ink), 0.9);
+}
+
+/* Callouts: Obsidian's stock blue/amber/red/green come from the world instead.
+   --callout-color is a full colour that Obsidian mixes into the tinted panel, border and title.
+   Warning kinds take the world's signal, danger kinds its warning red, everything else its ink,
+   in two steps (lighter panel for note/info, a touch stronger for tips and questions). */
+body.ecl-themed.theme-dark .callout { --callout-color: rgb(var(--ecl-t-ink)); background-color: color-mix(in oklch, var(--callout-color) 10%, var(--ecl-t-ground)); } /* tint over the ground, not over transparent, so stars never show inside a callout (ON2 A6) */
+body.ecl-themed.theme-dark .callout[data-callout="tip"], body.ecl-themed.theme-dark .callout[data-callout="hint"],
+body.ecl-themed.theme-dark .callout[data-callout="important"], body.ecl-themed.theme-dark .callout[data-callout="success"],
+body.ecl-themed.theme-dark .callout[data-callout="check"], body.ecl-themed.theme-dark .callout[data-callout="done"],
+body.ecl-themed.theme-dark .callout[data-callout="question"], body.ecl-themed.theme-dark .callout[data-callout="help"],
+body.ecl-themed.theme-dark .callout[data-callout="faq"] { background-color: color-mix(in oklch, var(--callout-color) 17%, var(--ecl-t-ground)); --callout-border-opacity: 0.5; }
+body.ecl-themed.theme-dark .callout[data-callout="warning"], body.ecl-themed.theme-dark .callout[data-callout="caution"],
+body.ecl-themed.theme-dark .callout[data-callout="attention"] { --callout-color: var(--ecl-t-signal); }
+body.ecl-themed.theme-dark .callout[data-callout="danger"], body.ecl-themed.theme-dark .callout[data-callout="error"],
+body.ecl-themed.theme-dark .callout[data-callout="failure"], body.ecl-themed.theme-dark .callout[data-callout="fail"],
+body.ecl-themed.theme-dark .callout[data-callout="missing"], body.ecl-themed.theme-dark .callout[data-callout="bug"] { --callout-color: var(--ecl-t-warn); }
+body.ecl-themed.theme-dark .callout[data-callout="quote"], body.ecl-themed.theme-dark .callout[data-callout="cite"] { background-color: transparent; --callout-border-opacity: 0.25; }
+
+/* ---- Orrery chrome: the whole window is one night sky -----------------
+   The star layer (.ecl-stars, a canvas main.js puts first in body) sits
+   behind the app. Ribbon, sidebars, tab bar, header and status bar lose their
+   panels and become words and hairlines on that sky. Active tab = a signal
+   hairline, active file = one lit dot, sidebar edge = a hairline that fades
+   out at both ends. Menus, modals and popovers keep their solid surfaces. */
+.ecl-stars { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; display: none; }
+body.ecl-themed.theme-dark { background: var(--ecl-t-ground); }
+body.ecl-themed.theme-dark .ecl-stars { display: block; }
+body.ecl-themed.theme-dark .app-container { position: relative; z-index: 1; background: transparent; }
+
+body.ecl-themed.theme-dark :is(.titlebar, .titlebar-inner, .horizontal-main-container, .workspace, .workspace-ribbon,
+  .workspace-split, .workspace-tabs, .workspace-tab-header-container, .workspace-tab-header-container-inner,
+  .workspace-tab-container, .workspace-leaf, .status-bar, .nav-header, .nav-buttons-container, .sidebar-toggle-button,
+  .mod-left-split .workspace-tabs, .mod-right-split .workspace-tabs) {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+/* Panes with notes keep a soft wash so stars never run under body text. */
+body.ecl-themed.theme-dark .mod-root .workspace-leaf-content:not([data-type="ecliptic-home"]) {
+  background: color-mix(in srgb, var(--ecl-t-ground) 90%, transparent); /* ON2 A6: 90, up from 72, so stars fade behind the reading column */
+}
+body.ecl-themed.theme-dark .workspace-leaf-content:not([data-type="ecliptic-home"]) .view-header,
+body.ecl-themed.theme-dark .workspace-leaf-content:not([data-type="ecliptic-home"]) .view-content { background: transparent; }
+body.ecl-themed.theme-dark .view-header { border-bottom-color: transparent; }
+body.ecl-themed.theme-dark .mod-left-split .workspace-leaf-content,
+body.ecl-themed.theme-dark .mod-right-split .workspace-leaf-content { background: transparent; }
+
+/* Ribbon: icons only, no panel. */
+body.ecl-themed.theme-dark .workspace-ribbon { border-right-color: transparent; border-left-color: transparent; }
+body.ecl-themed.theme-dark .workspace-ribbon .side-dock-ribbon-action:hover,
+body.ecl-themed.theme-dark .workspace-ribbon .clickable-icon:hover { background: transparent; --icon-color-hover: var(--ecl-t-signal); }
+
+/* Sidebar edges: a hairline that fades at both ends. */
+body.ecl-themed.theme-dark .workspace-split.mod-left-split,
+body.ecl-themed.theme-dark .workspace-split.mod-right-split { position: relative; border: 0; }
+body.ecl-themed.theme-dark .workspace-split.mod-left-split::after,
+body.ecl-themed.theme-dark .workspace-split.mod-right-split::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 1px; pointer-events: none; z-index: 2;
+  background: linear-gradient(180deg, transparent, rgba(var(--ecl-t-ink), 0.14) 22%, rgba(var(--ecl-t-ink), 0.14) 78%, transparent);
+}
+body.ecl-themed.theme-dark .workspace-split.mod-left-split::after { right: 0; }
+body.ecl-themed.theme-dark .workspace-split.mod-right-split::after { left: 0; }
+body.ecl-themed.theme-dark .workspace-leaf-resize-handle { border: 0; background: transparent; }
+
+/* Tab bar: plain words, the active one has a signal hairline under it. */
+body.ecl-themed.theme-dark .workspace-tab-header::before,
+body.ecl-themed.theme-dark .workspace-tab-header::after { display: none; }
+body.ecl-themed.theme-dark .workspace-tab-header,
+body.ecl-themed.theme-dark .workspace-tab-header.is-active,
+body.ecl-themed.theme-dark .workspace-tab-header.is-active:hover,
+body.ecl-themed.theme-dark .workspace-tab-header:hover { background: transparent; box-shadow: none; }
+body.ecl-themed.theme-dark .workspace-tab-header-inner { background-color: transparent; letter-spacing: 0.01em; }
+body.ecl-themed.theme-dark .workspace-tab-header-inner-title { color: rgba(var(--ecl-t-ink), 0.68); }
+body.ecl-themed.theme-dark .workspace-tab-header:hover .workspace-tab-header-inner-title { color: rgba(var(--ecl-t-ink), 0.85); }
+body.ecl-themed.theme-dark .workspace-tab-header.is-active .workspace-tab-header-inner-title { color: rgb(var(--ecl-t-ink)); }
+body.ecl-themed.theme-dark .workspace-tab-header .workspace-tab-header-inner-icon { color: rgba(var(--ecl-t-ink), 0.62); }
+body.ecl-themed.theme-dark .workspace-tab-header.is-active .workspace-tab-header-inner {
+  background-image: linear-gradient(var(--ecl-t-signal), var(--ecl-t-signal));
+  background-repeat: no-repeat;
+  background-position: 12px 100%;
+  background-size: calc(100% - 24px) 1px;
+}
+body.ecl-themed.theme-dark .workspace-tab-header-new-tab .clickable-icon,
+body.ecl-themed.theme-dark .workspace-tab-header-tab-list .clickable-icon { background: transparent; }
+
+/* File explorer: active file is one lit dot, not a highlighted row. */
+body.ecl-themed.theme-dark .nav-files-container .tree-item-self { position: relative; background: transparent; }
+body.ecl-themed.theme-dark .nav-files-container .tree-item-self:hover { background: transparent; color: rgb(var(--ecl-t-ink)); }
+body.ecl-themed.theme-dark .nav-files-container .tree-item-self.is-active,
+body.ecl-themed.theme-dark .nav-files-container .tree-item-self.is-selected { background: transparent; color: rgb(var(--ecl-t-ink)); }
+body.ecl-themed.theme-dark .nav-files-container .tree-item-self.is-active::before {
+  content: ""; position: absolute; left: 3px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%;
+  background: var(--ecl-t-signal); box-shadow: 0 0 8px var(--ecl-t-signal);
+}
+body.ecl-themed.theme-dark .nav-folder-title.is-active::before { display: none; }
+body.ecl-themed.theme-dark .tree-item-self .tree-item-icon { opacity: 0.6; }
+
+/* Status bar: small faint words. */
+body.ecl-themed.theme-dark .status-bar { border-top: 0; font-size: 10.5px; letter-spacing: 0.04em; }
+/* The bar floats over the bottom corner and is transparent, so notes and the right sidebar stop above it instead of running under its words.
+   (The home view keeps the full height: its own footer shares that row.) */
+body.ecl-themed.theme-dark :is(.mod-root, .mod-right-split) .workspace-leaf-content:not([data-type="ecliptic-home"]) { padding-bottom: var(--ecl-status-h, 26px); box-sizing: border-box; }
+
+/* Popups keep their solid surfaces so nothing sits on stars. */
+body.ecl-themed.theme-dark :is(.modal, .menu, .suggestion-container, .prompt, .popover, .notice, .tooltip) { background: var(--ecl-ground-2); }
+
+@media (prefers-reduced-motion: reduce) { .ecl-stars { transition: none; } }
+
+/* ---- Today (Phase): the real moon is the page ----------------------
+   A canvas moon fills the pane; the column is written on its night side.
+   Marks sit on the terminator with their labels on the night side. */
+.ecl-landing.is-today { overflow: hidden; }
+.ecl-t-moon { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+.ecl-t-col {
+  position: absolute; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding: 8px 4px 28px 0;
+  -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 34px), transparent);
+  mask-image: linear-gradient(180deg, #000 calc(100% - 34px), transparent);
+}
+.ecl-t-col::-webkit-scrollbar { display: none; }
+.ecl-t-col .ecl-back { display: inline-block; margin: 6px 0 20px; }
+.ecl-t-date { color: rgba(var(--ecl-ink), .55); }
+.ecl-t-title { font-weight: 400; font-size: 52px; line-height: 1.05; letter-spacing: -.012em; margin: 6px 0 0; color: rgb(var(--ecl-ink)); border: none; }
+.ecl-t-place { font-style: italic; font-size: 14px; color: rgba(var(--ecl-ink), .55); margin: 8px 0 22px; }
+.ecl-t-setplace { margin-top: 3px; font-size: 13px; }
+a.ecl-t-setplace { display: block; width: fit-content; padding: 4px 0 3px; font-style: normal; color: rgb(var(--ecl-accent)); border-bottom: 1px solid rgba(var(--ecl-accent), .45); cursor: pointer; text-decoration: none; }
+a.ecl-t-setplace:hover { color: rgb(var(--ecl-ink)); border-bottom-color: rgba(var(--ecl-ink), .6); text-decoration: none; }
+.is-phone a.ecl-t-setplace { padding: 9px 0 7px; }
+.ecl-t-sec { margin-bottom: 22px; }
+.ecl-t-lbl { display: flex; align-items: baseline; color: rgba(var(--ecl-ink), .64); }
+.ecl-t-lbl em { font-style: normal; letter-spacing: .1em; margin-left: 10px; color: rgba(var(--ecl-ink), .9); }
+.ecl-t-note { font-size: 14.5px; line-height: 1.62; color: rgba(var(--ecl-ink), .9); margin: 10px 0 9px; }
+.ecl-t-note.is-faint { color: rgba(var(--ecl-ink), .5); font-style: italic; }
+/* Desk only: the phase line and the italic empty-state lines come up one step so they read on the night side without competing with headings (ON3 B4). */
+.ecl-landing:not(.is-phone) .ecl-t-place { color: rgba(var(--ecl-ink), .66); }
+.ecl-landing:not(.is-phone) .ecl-t-note.is-faint, .ecl-landing:not(.is-phone) .ecl-t-col .ecl-empty { color: rgba(var(--ecl-ink), .64); }
+.ecl-t-link { display: inline-block; font-size: 12px; letter-spacing: .02em; color: rgb(var(--ecl-accent)); cursor: pointer; text-decoration: none; }
+.ecl-t-link::after { content: ""; display: inline-block; width: 16px; height: 1px; background: currentColor; margin-left: 8px; vertical-align: middle; }
+.ecl-t-link:hover { text-decoration: none; filter: brightness(1.15); }
+.ecl-t-rows { margin-top: 8px; }
+.ecl-t-task { display: flex; align-items: center; gap: 10px; min-height: 32px; font-size: 14px; color: rgba(var(--ecl-ink), .94); cursor: pointer; }
+.ecl-t-task i { width: 9px; height: 9px; border: 1px solid currentColor; border-radius: 50%; flex: none; box-sizing: border-box; }
+.ecl-t-what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecl-t-task small, .ecl-t-recent small { font-size: 11.5px; letter-spacing: .04em; color: rgba(var(--ecl-ink), .62); white-space: nowrap; }
+/* Hover brightens to full ink; the signal colour is reserved for NOW and the one "Open today's note" link. */
+.ecl-t-task:hover .ecl-t-what, .ecl-t-recent:hover .ecl-t-what { color: rgb(var(--ecl-ink)); }
+.ecl-t-task:hover i { background: rgba(var(--ecl-ink), .25); }
+/* Overdue: the title stays in normal ink; only the small date carries the world's warn colour, dimmed, so the signal colour stays the one accent. */
+.ecl-t-task.is-overdue small { color: var(--ecl-warn, rgba(var(--ecl-ink), .9)); font-weight: 400; letter-spacing: .02em; } /* the world's warning colour at normal weight, not bold bright ink (ON5 V2) */
+.ecl-t-task.is-overdue .ecl-t-what { color: rgba(var(--ecl-ink), 1); }
+/* Column too tall for the pane: tighter rhythm before anything is dropped. */
+.ecl-t-col.is-tight .ecl-back { margin: 2px 0 12px; }
+.ecl-t-col.is-tight .ecl-t-title { font-size: 44px; }
+.ecl-t-col.is-tight .ecl-t-place { margin: 6px 0 15px; }
+.ecl-t-col.is-tight .ecl-t-sec { margin-bottom: 14px; }
+.ecl-t-col.is-tight .ecl-t-task { min-height: 26px; }
+.ecl-t-col.is-tight .ecl-t-recent { min-height: 26px; padding: 2px 0; }
+.ecl-t-col.is-tight .ecl-t-note { margin: 8px 0 7px; }
+.ecl-t-task.is-done { color: rgba(var(--ecl-ink), .48); }
+.ecl-t-task.is-done i { background: rgba(var(--ecl-ink), .55); border-color: rgba(var(--ecl-ink), .55); box-shadow: inset 0 0 0 2px var(--ecl-bg); }
+.ecl-t-task.is-done .ecl-t-what { text-decoration: line-through; text-decoration-color: rgba(var(--ecl-ink), .2); }
+.ecl-t-task.is-fold, .ecl-t-task.is-more { padding-left: 19px; min-height: 26px; font-size: 12.5px; letter-spacing: .04em; }
+.ecl-t-task.is-fold .ecl-t-what { text-decoration: none; }
+.ecl-t-task.is-more { color: rgba(var(--ecl-ink), .78); }
+.ecl-t-task.is-fold { color: rgba(var(--ecl-ink), .64); }
+.ecl-t-task.is-more:hover, .ecl-t-task.is-fold:hover { color: rgba(var(--ecl-ink), .92); }
+/* "+ N more" and "N done" sit a little apart from the task rows, so they read as footnotes to the list (ON4 T4). */
+.ecl-t-task.is-more, .ecl-t-task.is-fold { margin-top: 6px; }
+.ecl-t-task.is-more + .ecl-t-task.is-fold { margin-top: 0; }
+/* The last row of a list has padding inside its min-height; pull it back so every section header has the same step above it (ON4 T4). */
+.ecl-t-rows > :last-child { margin-bottom: -4px; }
+.ecl-t-recent { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; min-height: 32px; padding: 4px 0; font-size: 14px; color: rgba(var(--ecl-ink), .94); cursor: pointer; }
+
+.ecl-t-marks { position: absolute; inset: 0; pointer-events: none; }
+.ecl-t-marks.is-off { display: none; }
+.ecl-t-mark { position: absolute; width: 0; height: 0; }
+.ecl-t-mark > i { position: absolute; left: -3.5px; top: -3.5px; width: 7px; height: 7px; border-radius: 50%; box-sizing: border-box;
+  border: 1.1px solid rgba(var(--ecl-ink), .95); background: var(--ecl-bg); }
+.ecl-t-mark.is-now > i { background: rgb(var(--ecl-accent)); border-color: rgb(var(--ecl-accent)); box-shadow: 0 0 12px 2px rgba(var(--ecl-accent), .6); }
+.ecl-t-mark-lab { position: absolute; left: 16px; top: -15px; white-space: nowrap; line-height: 1.25; }
+.ecl-t-mark-lab::before { content: ""; position: absolute; left: -10px; top: 15px; width: 6px; height: 1px; background: rgba(var(--ecl-ink), .35); }
+.ecl-t-mark-lab .ecl-caps { font-size: 9px; letter-spacing: .18em; color: rgba(var(--ecl-ink), .6); }
+.ecl-t-mark.is-now .ecl-caps { color: rgb(var(--ecl-accent)); }
+.ecl-t-mark-time { font-size: 13px; color: rgba(var(--ecl-ink), .92); margin-top: 2px; }
+.is-mirror .ecl-t-mark-lab { left: auto; right: 16px; text-align: right; }
+.is-mirror .ecl-t-mark-lab::before { left: auto; right: -10px; }
+/* Beside the moon (gibbous, full): the marks become a small list under the date. */
+.ecl-t-sunlist { display: none; margin: -12px 0 22px; gap: 22px; flex-wrap: wrap; }
+.ecl-t-sunlist.is-on { display: flex; }
+.ecl-t-sunitem { display: flex; flex-direction: column; gap: 2px; }
+.ecl-t-sunitem.is-now .ecl-caps { color: rgb(var(--ecl-accent)); }
+/* Phone: the terminator is the horizon; marks hang down off it on stems. */
+.is-phone .ecl-t-title { font-size: 42px; }
+.is-phone .ecl-t-col { padding-right: 0; }
+.is-phone .ecl-t-col { padding-bottom: 44px; -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 30px), transparent); mask-image: linear-gradient(180deg, #000 calc(100% - 30px), transparent); }
+.is-phone .ecl-t-task, .is-phone .ecl-t-recent { min-height: 28px; font-size: 13.5px; }
+.is-phone .ecl-t-task.is-more, .is-phone .ecl-t-task.is-fold { min-height: 24px; font-size: 12px; }
+.is-phone .ecl-t-col .ecl-back { margin: 2px 0 10px; }
+.is-phone .ecl-t-place { margin: 6px 0 16px; }
+.is-phone .ecl-t-sec { margin-bottom: 12px; }
+.is-phone .ecl-t-note { line-height: 1.5; margin: 8px 0 7px; }
+/* ON7 phone item 1 (AA3): the column scrolls, so it keeps one rhythm - tight inside a section (label, its line, its link or rows), a clear step between sections - and is-tight does not compress it. */
+.is-phone .ecl-t-col .ecl-t-place { margin: 6px 0 24px; }
+.is-phone .ecl-t-col .ecl-t-sec { margin-bottom: 28px; }
+.is-phone .ecl-t-col .ecl-t-note { margin: 6px 0 3px; }
+.is-phone .ecl-t-col .ecl-t-rows { margin-top: 5px; }
+.is-phone .ecl-t-mark-lab { left: 7px; top: calc(var(--stem, 14px) - 10px); text-shadow: 0 0 6px var(--ecl-sky, var(--ecl-bg)), 0 0 3px var(--ecl-sky, var(--ecl-bg)), 0 0 2px var(--ecl-sky, var(--ecl-bg)); } /* ON7 Y1: the disc's limb and dots never run through a label */
+.is-phone .ecl-t-mark-lab::before { left: -7px; top: calc(-1 * var(--stem, 14px) + 10px); width: 1px; height: calc(var(--stem, 14px) - 10px); }
+.is-phone .ecl-t-mark.is-flip .ecl-t-mark-lab { left: auto; right: 7px; text-align: right; }
+.is-phone .ecl-t-mark.is-flip .ecl-t-mark-lab::before { left: auto; right: -7px; }
+
+/* ---- Folder page: Ephemeris --------------------------------------------
+   One column that scrolls: the folder's object beside its title, a line on
+   what is next and a row of numbers, the next seven days, a ledger with one
+   row per subfolder, then Due soon and Recent side by side. Gold marks only
+   the next deadline. A few stars sit in the margins, none under the words. */
+.ecl-landing.is-folder { overflow: hidden; }
+.ecl-f-sky { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+.ecl-f-scroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; }
+.ecl-f-col { position: relative; max-width: 780px; margin: 0 auto; padding: 22px 48px 96px; box-sizing: border-box; }
+.ecl-f-crumb { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 10px; margin: 6px 0 18px; cursor: default; color: rgba(var(--ecl-ink), .7); letter-spacing: .18em; }
+.ecl-f-crumb .ecl-back-mark { cursor: pointer; margin-right: 0; padding-right: 2px; color: rgba(var(--ecl-ink), .6); }
+.ecl-f-crumb .ecl-back-mark:hover { color: rgb(var(--ecl-accent)); }
+.ecl-f-crumb-seg { cursor: pointer; color: inherit; text-decoration: none; }
+.ecl-f-crumb-seg:hover { color: rgb(var(--ecl-accent)); text-decoration: none; }
+.ecl-f-sep { color: rgba(var(--ecl-ink), .3); letter-spacing: 0; }
+.ecl-f-head { display: flex; align-items: center; gap: 16px; }
+.ecl-f-mini { flex: none; margin: -6px 0 -6px -10px; }
+.ecl-f-headtext { min-width: 0; }
+.ecl-f-eyebrow { color: rgba(var(--ecl-ink), .68); }
+.ecl-f-title { font-weight: 400; font-size: 52px; line-height: 1.04; letter-spacing: -.012em; margin: 6px 0 0; color: rgb(var(--ecl-ink)); border: none; overflow-wrap: anywhere; }
+.ecl-f-lede { font-style: italic; font-size: 16px; line-height: 1.4; color: rgba(var(--ecl-ink), .88); margin: 8px 0 0; }
+.ecl-f-lede.is-empty { display: none; }
+.ecl-f-stats:empty { padding-bottom: 0; margin-top: 0; }
+.ecl-f-stats { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 30px; margin: 20px 0 0; padding-bottom: 18px; border-bottom: 1px solid rgba(var(--ecl-ink), .1); }
+.ecl-f-stat { display: flex; flex-direction: column; gap: 3px; }
+.ecl-f-stat-v { font-size: 23px; line-height: 1.1; color: rgba(var(--ecl-ink), .95); }
+.ecl-f-stat small { font-size: 9.5px; letter-spacing: .18em; color: rgba(var(--ecl-ink), .68); }
+.ecl-f-stat.is-gold .ecl-f-stat-v { color: rgb(var(--ecl-accent)); }
+.ecl-f-notelink { margin-left: auto; align-self: flex-end; font-size: 13px; color: rgba(var(--ecl-ink), .8); cursor: pointer; text-decoration: none; padding-bottom: 2px; }
+.ecl-f-notelink::after { content: ""; display: inline-block; width: 18px; height: 1px; background: currentColor; margin-left: 8px; vertical-align: middle; opacity: .7; transition: width 200ms ease; }
+.ecl-f-notelink:hover { color: rgb(var(--ecl-ink)); text-decoration: none; }
+.ecl-f-notelink:hover::after { width: 26px; }
+.ecl-f-col.is-wide { max-width: 1080px; }
+.ecl-f-col.is-lean .ecl-f-top, .ecl-f-col.is-lean .ecl-f-stats, .ecl-f-col.is-lean .ecl-f-detect, .ecl-f-col.is-lean .ecl-f-body { max-width: 684px; }
+.ecl-f-detect { margin-top: 10px; font-size: 12.5px; letter-spacing: .02em; color: rgba(var(--ecl-ink), .78); }
+.ecl-f-dlink { color: rgba(var(--ecl-ink), .86); cursor: pointer; text-decoration: none; border-bottom: 1px solid rgba(var(--ecl-ink), .4); }
+.ecl-f-dlink:hover { color: rgb(var(--ecl-ink)); text-decoration: none; border-bottom-color: rgba(var(--ecl-ink), .6); }
+.ecl-f-dlink.is-on { color: rgb(var(--ecl-ink)); border-bottom-color: transparent; cursor: default; }
+.ecl-f-dsep { color: rgba(var(--ecl-ink), .3); }
+/* "change" reads as a control: underlined, one step brighter, a small caret, and a tap target taller than the word. */
+.ecl-f-dchange { display: inline-block; padding: 5px 2px 3px; color: rgba(var(--ecl-ink), .95); border-bottom-color: rgba(var(--ecl-ink), .55); }
+.ecl-f-dchange::after { content: "\25BE"; font-size: 9px; margin-left: 5px; vertical-align: 1px; opacity: .8; }
+.ecl-f-detect:empty { display: none; }
+.ecl-f-eyebrow-d { letter-spacing: .14em; }
+.ecl-f-eyebrow-d .ecl-f-dchange { padding: 2px 1px 0; }
+.is-tiny .ecl-f-dchange { padding: 10px 6px 8px; margin: -8px 0 -6px; }
+/* "Showing <folder>" under the title when a folder only holds one folder. */
+.ecl-f-via { margin-top: 6px; font-size: 13px; letter-spacing: .02em; color: rgba(var(--ecl-ink), .8); font-family: var(--font-interface, system-ui); }
+.ecl-f-vialink { color: rgba(var(--ecl-ink), .92); cursor: pointer; text-decoration: none; border-bottom: 1px solid rgba(var(--ecl-ink), .4); }
+.ecl-f-vialink:hover { color: rgb(var(--ecl-ink)); text-decoration: none; border-bottom-color: rgba(var(--ecl-ink), .75); }
+.ecl-f-body { margin-top: 22px; }
+.ecl-f-sec { margin-bottom: 30px; }
+.ecl-f-sec > .ecl-t-lbl { margin-bottom: 10px; }
+
+/* The next seven days: a strip of days, a hairline over each; a due day's line is ink, the next deadline's gold. */
+.ecl-f-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+.ecl-f-day { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 7px 3px 8px; border-top: 1px solid rgba(var(--ecl-ink), .14); text-decoration: none; cursor: pointer; min-width: 0; border-radius: 0 0 6px 6px; }
+.ecl-f-day small { font-size: 10.5px; letter-spacing: .08em; color: rgba(var(--ecl-ink), .68); font-family: var(--font-interface, system-ui); }
+.ecl-f-day b { font-weight: 400; font-size: 18px; color: rgba(var(--ecl-ink), .86); }
+.ecl-f-day-t { max-width: 100%; font-size: 11px; color: rgba(var(--ecl-ink), .8); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-interface, system-ui); }
+.ecl-f-day-note { position: absolute; top: 6px; right: 8px; width: 4px; height: 4px; border-radius: 50%; background: rgba(var(--ecl-ink), .5); }
+.ecl-f-day.is-now { background: rgba(var(--ecl-ink), .05); }
+.ecl-f-day.is-due { border-top-color: rgba(var(--ecl-ink), .75); }
+.ecl-f-day.is-gold { border-top: 2px solid rgb(var(--ecl-accent)); padding-top: 6px; }
+.ecl-f-day.is-gold b, .ecl-f-day.is-gold .ecl-f-day-t { color: rgb(var(--ecl-accent)); }
+.ecl-f-day:hover { background: rgba(var(--ecl-ink), .07); text-decoration: none; }
+.ecl-f-day.is-idle { cursor: default; }
+.ecl-f-day.is-idle:not(.is-now):hover { background: none; }
+.ecl-f-week3 { display: none; }
+.is-xs .ecl-f-week { display: none; }
+.is-xs .ecl-f-week3 { display: block; }
+.ecl-f-quiet { font-size: 14px; font-style: italic; color: rgba(var(--ecl-ink), .72); }
+
+/* The ledger: one row per subfolder, columns aligned under their headers. */
+.ecl-f-lname { font-size: 15.5px; color: rgba(var(--ecl-ink), .95); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Plain rows: "12 notes · edited 3 days ago" then "latest <name>" cut whole with an ellipsis; side by side when there is room, stacked on a phone. */
+.ecl-f-psub { display: flex; align-items: baseline; min-width: 0; margin-top: 2px; font-size: 12px; letter-spacing: .02em; color: rgba(var(--ecl-ink), .84); font-family: var(--font-interface, system-ui); }
+.ecl-f-ps { flex: none; white-space: nowrap; }
+.ecl-f-pl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecl-f-pl::before { content: "\00a0·\00a0"; }
+.is-tiny .ecl-f-psub { flex-direction: column; align-items: stretch; }
+.is-tiny .ecl-f-pl::before { content: none; }
+/* A one-line key under a section's heading or above a set of drawn bodies. */
+.ecl-f-bkey { margin: 0 0 18px; line-height: 1.4; }
+.ecl-f-key-x { margin-left: 0; }
+.ecl-f-cathd { grid-column: 1 / -1; margin-bottom: 4px; }
+.ecl-f-lstat { font-size: 12px; letter-spacing: .02em; color: rgba(var(--ecl-ink), .84); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-family: var(--font-interface, system-ui); }
+/* Folder page E: small bodies, plain rows, course columns, reading queue, project lanes, journal */
+.ecl-f-bcv { display: block; flex: none; }
+.ecl-f-plist { display: grid; grid-template-columns: minmax(0, 1fr); }
+.ecl-f-prow { display: flex; align-items: center; gap: 14px; padding: 6px 0; border-bottom: 1px solid rgba(var(--ecl-ink), .06); cursor: pointer; text-decoration: none; min-width: 0; }
+.ecl-f-prow:hover { background: rgba(var(--ecl-ink), .035); text-decoration: none; }
+.ecl-f-prow:hover .ecl-f-lname { color: rgb(var(--ecl-ink)); }
+.ecl-f-prow.is-done .ecl-f-lname { color: rgba(var(--ecl-ink), .78); }
+.ecl-f-pn { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ecl-f-px { flex: none; font-size: 12px; color: rgba(var(--ecl-ink), .82); white-space: nowrap; text-align: right; font-family: var(--font-interface, system-ui); }
+.ecl-f-px.is-gold { color: rgb(var(--ecl-accent)); }
+.ecl-f-px.is-late, .ecl-f-pj .is-late, .ecl-f-jump-d.is-late { color: var(--ecl-warn, rgba(var(--ecl-ink), .95)); font-weight: 400; } /* one overdue style: the world's warning colour, as on Today and Home; gold is the quieter due-soon */
+.ecl-f-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0 40px; }
+.ecl-f-cols.is-leaf { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ecl-f-cols:not(.is-leaf) { row-gap: 44px; }
+.is-narrow .ecl-f-cols, .is-narrow .ecl-f-cols.is-leaf { grid-template-columns: minmax(0, 1fr); }
+.ecl-f-course { min-width: 0; }
+.ecl-f-ctop { display: flex; align-items: center; gap: 14px; padding-bottom: 16px; margin-bottom: 18px; border-bottom: 1px solid rgba(var(--ecl-ink), .1); cursor: pointer; }
+.ecl-f-ctext { min-width: 0; }
+.ecl-f-cols:not(.is-leaf) .ecl-f-ctop { height: 106px; box-sizing: border-box; overflow: hidden; }
+.ecl-f-cols:not(.is-leaf) .ecl-f-cname { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ecl-f-cols:not(.is-leaf) .ecl-f-cmeta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.is-narrow .ecl-f-cols .ecl-f-ctop, .is-narrow .ecl-f-cols:not(.is-leaf) .ecl-f-ctop { height: auto; min-height: 0; overflow: visible; }
+.is-narrow .ecl-f-course { margin-bottom: 8px; }
+.ecl-f-ccode { color: rgba(var(--ecl-ink), .68); font-size: 10px; letter-spacing: .18em; }
+.ecl-f-cname { font-weight: 400; font-size: 20px; line-height: 1.2; margin: 2px 0 0; color: rgba(var(--ecl-ink), .95); border: none; overflow-wrap: anywhere; }
+.ecl-f-ctop:hover .ecl-f-cname { color: rgb(var(--ecl-ink)); }
+.ecl-f-cmeta { font-size: 12px; color: rgba(var(--ecl-ink), .84); margin-top: 3px; font-family: var(--font-interface, system-ui); }
+.ecl-f-csec { margin-bottom: 24px; }
+.ecl-f-crow { display: flex; flex-direction: column; align-items: stretch; gap: 1px; min-height: 32px; padding: 7px 0 8px; box-sizing: border-box; border-bottom: 1px solid rgba(var(--ecl-ink), .06); font-size: 14.5px; line-height: 1.3; color: rgba(var(--ecl-ink), .94); cursor: pointer; }
+.ecl-f-crow .ecl-f-what { flex: none; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.ecl-f-crow small { flex: none; font-size: 12px; color: rgba(var(--ecl-ink), .82); white-space: normal; font-family: var(--font-interface, system-ui); }
+.ecl-f-cols.is-leaf .ecl-f-csec:nth-child(4) { grid-column: 1 / -1; }
+.ecl-f-cols.is-leaf .ecl-f-csec:nth-child(4) .ecl-f-crow { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 16px; }
+.ecl-f-cols.is-leaf .ecl-f-csec:nth-child(4) .ecl-f-what { flex: 1; min-width: 0; }
+.ecl-f-cols.is-leaf .ecl-f-csec:nth-child(4) small { text-align: right; white-space: nowrap; }
+.is-narrow .ecl-f-cols.is-leaf .ecl-f-csec:nth-child(4) { grid-column: auto; }
+.is-narrow .ecl-f-cols.is-leaf .ecl-f-csec:nth-child(4) .ecl-f-crow { flex-direction: column; align-items: stretch; gap: 1px; }
+.is-narrow .ecl-f-cols.is-leaf .ecl-f-csec:nth-child(4) small { text-align: left; white-space: normal; }
+.ecl-f-crow.is-gold small { color: rgb(var(--ecl-accent)); }
+.ecl-f-crow:hover .ecl-f-what { color: rgb(var(--ecl-ink)); }
+.ecl-f-cnote { font-size: 12px; color: rgba(var(--ecl-ink), .76); margin-top: 6px; font-family: var(--font-interface, system-ui); }
+/* Course jump row: phone only. */
+.ecl-f-jump { display: none; }
+.is-tiny .ecl-f-jump { display: block; margin: -4px 0 18px; }
+.ecl-f-jump-hd { margin-bottom: 6px; }
+.ecl-f-jump-i { display: flex; align-items: center; gap: 12px; padding: 10px 0 9px; border-top: 1px solid rgba(var(--ecl-ink), .1); cursor: pointer; text-decoration: none; min-width: 0; }
+.ecl-f-jump-i:last-child { border-bottom: 1px solid rgba(var(--ecl-ink), .1); }
+.ecl-f-jump-i:hover { text-decoration: none; }
+.ecl-f-jump-i::after { content: ""; flex: none; width: 7px; height: 7px; margin: -3px 4px 0 0; border-right: 1.2px solid rgba(var(--ecl-ink), .6); border-bottom: 1.2px solid rgba(var(--ecl-ink), .6); transform: rotate(45deg); }
+.ecl-f-jump-m { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ecl-f-jump-t { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.ecl-f-jump-c { flex: none; color: rgba(var(--ecl-ink), .7); font-size: 10px; letter-spacing: .16em; }
+.ecl-f-jump-n { min-width: 0; font-size: 15px; color: rgba(var(--ecl-ink), .94); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecl-f-jump-d { font-size: 12px; color: rgba(var(--ecl-ink), .84); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-interface, system-ui); }
+.ecl-f-jump-d.is-gold { color: rgb(var(--ecl-accent)); }
+.ecl-f-jump + .ecl-f-bkey { margin-top: 0; }
+.ecl-f-cnote-all { color: rgba(var(--ecl-ink), .9); cursor: pointer; text-decoration: none; border-bottom: 1px solid rgba(var(--ecl-ink), .4); }
+.ecl-f-cnote-all:hover { color: rgb(var(--ecl-ink)); text-decoration: none; }
+/* Note rows with a line of the note under the title (a folder that holds only notes). */
+.ecl-f-nr.has-prev { align-items: flex-start; padding: 9px 0 10px; }
+.ecl-f-nr.has-prev > small { padding-top: 3px; }
+.ecl-f-nr-m { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ecl-f-nr-x { font-style: italic; font-size: 13px; line-height: 1.4; color: rgba(var(--ecl-ink), .72); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecl-f-nr-x:empty { display: none; }
+.ecl-f-qgrid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 0 48px; }
+.is-narrow .ecl-f-qgrid { grid-template-columns: minmax(0, 1fr); }
+.ecl-f-pick { padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid rgba(var(--ecl-ink), .07); }
+.ecl-f-pick:last-child { border-bottom: none; }
+.ecl-f-ptitle { display: block; font-size: 19px; line-height: 1.25; color: rgba(var(--ecl-ink), .95); cursor: pointer; text-decoration: none; }
+.ecl-f-ptitle:hover { color: rgb(var(--ecl-ink)); text-decoration: none; }
+.ecl-f-pick.is-first .ecl-f-ptitle { font-size: 28px; line-height: 1.15; color: rgb(var(--ecl-accent)); }
+.ecl-f-psum { font-style: italic; font-size: 14px; line-height: 1.45; color: rgba(var(--ecl-ink), .8); margin-top: 6px; }
+.ecl-f-psum:empty { display: none; }
+.ecl-f-pmeta { font-size: 12px; letter-spacing: .02em; color: rgba(var(--ecl-ink), .8); margin-top: 6px; font-family: var(--font-interface, system-ui); }
+.ecl-f-mark { display: inline-block; margin-top: 8px; font-size: 12.5px; letter-spacing: .03em; color: rgba(var(--ecl-ink), .78); cursor: pointer; text-decoration: none; border-bottom: 1px solid rgba(var(--ecl-ink), .25); font-family: var(--font-interface, system-ui); }
+.ecl-f-mark:hover { color: rgb(var(--ecl-ink)); text-decoration: none; border-bottom-color: rgba(var(--ecl-ink), .6); }
+.ecl-f-cat { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 0 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(var(--ecl-ink), .06); cursor: pointer; }
+.ecl-f-cat:hover { background: rgba(var(--ecl-ink), .035); }
+.ecl-f-cat.is-on .ecl-f-lname { color: rgb(var(--ecl-ink)); }
+.ecl-f-cat.is-on { border-bottom-color: rgba(var(--ecl-ink), .3); }
+.ecl-f-cat-t { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ecl-f-cat-t small { font-size: 12px; color: rgba(var(--ecl-ink), .84); font-family: var(--font-interface, system-ui); }
+.ecl-f-cat-n { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: 16px; line-height: 1.1; color: rgba(var(--ecl-ink), .86); font-variant-numeric: tabular-nums; }
+.ecl-f-cat-n small { font-size: 8.5px; letter-spacing: .16em; color: rgba(var(--ecl-ink), .7); }
+.ecl-f-dots { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 3px; font-size: 10.5px; color: rgba(var(--ecl-ink), .72); font-family: var(--font-interface, system-ui); }
+.ecl-f-dots i { width: 7px; height: 7px; border-radius: 50%; border: 1.2px solid rgba(var(--ecl-ink), .62); box-sizing: border-box; }
+.ecl-f-dots i.is-lit { background: rgba(var(--ecl-ink), .92); border-color: rgba(var(--ecl-ink), .92); }
+.ecl-f-key { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; margin-top: 10px; font-size: 11.5px; color: rgba(var(--ecl-ink), .78); font-family: var(--font-interface, system-ui); }
+.ecl-f-key i { width: 7px; height: 7px; border-radius: 50%; border: 1.2px solid rgba(var(--ecl-ink), .62); box-sizing: border-box; flex: none; }
+.ecl-f-key i.is-lit { background: rgba(var(--ecl-ink), .92); border-color: rgba(var(--ecl-ink), .92); }
+.ecl-f-key i:not(:first-child) { margin-left: 10px; }
+/* Phone: the categories as a two-column grid above the picks (replaces the side list): name, unread count, one dot per post. */
+.ecl-f-catgrid { display: none; }
+.is-tiny .ecl-f-catgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 22px; margin: 0 0 20px; padding-bottom: 12px; border-bottom: 1px solid rgba(var(--ecl-ink), .1); }
+.is-tiny .ecl-f-qright { display: none; }
+.ecl-f-catcell { display: block; padding: 9px 0 10px; border-top: 1px solid rgba(var(--ecl-ink), .1); cursor: pointer; text-decoration: none; min-width: 0; }
+.ecl-f-catcell:hover { text-decoration: none; }
+.ecl-f-catcell:hover .ecl-f-lname { color: rgb(var(--ecl-ink)); }
+.ecl-f-catcell-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.ecl-f-catcell-h .ecl-f-lname { font-size: 15px; min-width: 0; }
+.ecl-f-catcell-h b { flex: none; font-weight: 400; font-size: 11.5px; color: rgba(var(--ecl-ink), .8); font-family: var(--font-interface, system-ui); }
+.ecl-f-catkey { grid-column: 1 / -1; margin-top: 12px; }
+/* The small key text beside a section label (what the dots and lit shares mean). */
+.ecl-f-ledsec > .ecl-t-lbl em, .ecl-f-jsec > .ecl-t-lbl em { font-size: 11.5px; letter-spacing: .02em; color: rgba(var(--ecl-ink), .74); font-family: var(--font-interface, system-ui); text-transform: none; }
+.ecl-f-lanemore { margin-left: auto; font-size: 11.5px; letter-spacing: .04em; text-transform: none; color: rgba(var(--ecl-ink), .8); cursor: pointer; text-decoration: none; border-bottom: 1px solid rgba(var(--ecl-ink), .35); font-family: var(--font-interface, system-ui); }
+.ecl-f-lanemore:hover { color: rgb(var(--ecl-ink)); text-decoration: none; }
+.ecl-f-qlist { margin-top: 14px; }
+.ecl-f-it { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid rgba(var(--ecl-ink), .07); cursor: pointer; }
+.ecl-f-it-m { min-width: 0; display: flex; flex-direction: column; }
+.ecl-f-it-m .ecl-f-what { font-size: 15px; color: rgba(var(--ecl-ink), .96); flex: none; }
+.ecl-f-it:hover .ecl-f-what { color: rgb(var(--ecl-ink)); }
+.ecl-f-it-x { font-style: italic; font-size: 13px; color: rgba(var(--ecl-ink), .72); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecl-f-it-d { font-size: 12px; color: rgba(var(--ecl-ink), .8); white-space: nowrap; font-family: var(--font-interface, system-ui); }
+.ecl-f-lanes .ecl-f-pj { min-height: 76px; box-sizing: border-box; }
+.is-narrow .ecl-f-lanes .ecl-f-pj { min-height: 0; }
+.is-tiny .ecl-f-bkey { margin: 22px 0 0; }
+.ecl-f-lanes { display: grid; grid-template-columns: repeat(var(--ecl-lanes, 3), minmax(0, 1fr)); gap: 0 36px; }
+.ecl-f-teach { margin: 0 0 18px; font-size: 14px; line-height: 1.5; color: rgba(var(--ecl-ink), .82); font-family: var(--font-interface, system-ui); }
+.ecl-f-teach code { padding: 1px 6px; font-size: 13px; color: rgba(var(--ecl-ink), .92); background: rgba(var(--ecl-ink), .07); border-radius: 0; }
+.is-narrow .ecl-f-lanes { grid-template-columns: minmax(0, 1fr); }
+.ecl-f-lane { min-width: 0; margin-bottom: 20px; }
+.ecl-f-lanehd { margin-bottom: 10px; }
+.ecl-f-pj { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(var(--ecl-ink), .06); cursor: pointer; }
+.ecl-f-pj:hover { background: rgba(var(--ecl-ink), .035); }
+.ecl-f-pj:hover .ecl-f-lname { color: rgb(var(--ecl-ink)); }
+.ecl-f-pj-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ecl-f-pj-x { font-style: italic; font-size: 13px; line-height: 1.4; color: rgba(var(--ecl-ink), .72); margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.ecl-f-pj-x:empty { display: none; }
+.ecl-f-lstat .is-gold { color: rgb(var(--ecl-accent)); }
+/* One rule for folder pages (R2.6): names, titles and the italic one-line summaries are serif; everything that is meta (dates, counts, "edited 3d ago", the detected-as line, small labels, "view all" links, hints) is the interface sans. */
+.ecl-f-detect, .ecl-f-notelink, .ecl-f-ccode, .ecl-f-jump-c, .ecl-f-all, .ecl-f-wkthen, .ecl-f-wkhint, .ecl-f-pmeta,
+.ecl-f-stat small, .ecl-f-cat-n small, .ecl-f-jd small, .ecl-f-wkbig small, .ecl-f-crow small { font-family: var(--font-interface, system-ui); }
+.ecl-f-done { margin-top: 4px; }
+.ecl-f-jstrip { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 4px; }
+.ecl-f-jd { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0 8px; cursor: pointer; text-decoration: none; border-top: 1px solid rgba(var(--ecl-ink), .1); }
+.ecl-f-jd small { font-size: 9.5px; letter-spacing: .12em; color: rgba(var(--ecl-ink), .62); text-transform: uppercase; }
+.ecl-f-jd b { font-weight: 400; font-size: 14px; color: rgba(var(--ecl-ink), .8); }
+.ecl-f-jd i { width: 7px; height: 7px; border-radius: 50%; border: 1.2px solid rgba(var(--ecl-ink), .4); box-sizing: border-box; }
+.ecl-f-jd.has i { background: rgba(var(--ecl-ink), .95); border-color: rgba(var(--ecl-ink), .95); }
+.ecl-f-jd.is-idle { cursor: default; }
+/* Today: a heavier line over it, a tint, and the number in full ink. */
+.ecl-f-jd.is-now { border-top: 2px solid rgba(var(--ecl-ink), .95); padding-top: 5px; background: rgba(var(--ecl-ink), .06); }
+.ecl-f-jd.is-now b { color: rgb(var(--ecl-ink)); }
+.ecl-f-jd.is-now small { color: rgba(var(--ecl-ink), .8); }
+.ecl-f-jd:hover { text-decoration: none; }
+.ecl-f-jd.has:hover b { color: rgb(var(--ecl-ink)); }
+.ecl-f-mhead { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.ecl-f-mhead-t { min-width: 0; display: flex; flex-direction: column; }
+.ecl-f-mhead-t small { font-size: 12px; color: rgba(var(--ecl-ink), .84); font-family: var(--font-interface, system-ui); }
+.ecl-f-jr { display: flex; align-items: baseline; gap: 14px; min-height: 32px; padding: 4px 0; box-sizing: border-box; border-bottom: 1px solid rgba(var(--ecl-ink), .06); cursor: pointer; font-size: 14.5px; }
+.ecl-f-jr-d { flex: none; width: 5.2em; font-size: 12px; letter-spacing: .04em; color: rgba(var(--ecl-ink), .82); font-family: var(--font-interface, system-ui); }
+.ecl-f-jr-x { flex: 1; min-width: 0; color: rgba(var(--ecl-ink), .9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecl-f-jr:hover .ecl-f-jr-x { color: rgb(var(--ecl-ink)); }
+.ecl-f-jr-x.is-empty { color: rgba(var(--ecl-ink), .5); font-style: italic; }
+.is-tiny .ecl-f-jr { align-items: flex-start; gap: 10px; padding: 7px 0; }
+.is-tiny .ecl-f-jr-d { width: 4.6em; padding-top: 2px; }
+.is-tiny .ecl-f-jr-x { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.35; }
+.is-tiny .ecl-f-jstrip { grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 8px; }
+.is-tiny .ecl-f-pick.is-first .ecl-f-ptitle { font-size: 24px; }
+.is-tiny .ecl-f-it { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+
+/* Due soon and Recent: title left, date right-aligned, the same row height. */
+.ecl-f-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; }
+.ecl-f-pair.is-single, .is-narrow .ecl-f-pair { grid-template-columns: minmax(0, 1fr); }
+.ecl-f-rows { margin-top: 2px; }
+.ecl-f-dr, .ecl-f-nr { display: flex; align-items: center; gap: 12px; min-height: 34px; padding: 3px 0; box-sizing: border-box; font-size: 15px; color: rgba(var(--ecl-ink), .94); cursor: pointer; border-bottom: 1px solid rgba(var(--ecl-ink), .06); }
+.ecl-f-dr i { width: 9px; height: 9px; border: 1px solid rgba(var(--ecl-ink), .55); border-radius: 50%; flex: none; box-sizing: border-box; }
+.ecl-f-dr.is-gold i { border-color: rgb(var(--ecl-accent)); box-shadow: 0 0 6px rgba(var(--ecl-accent), .55); }
+.ecl-f-dr.is-gold small { color: rgb(var(--ecl-accent)); }
+.ecl-f-dr.is-late i { border-color: var(--ecl-warn, rgba(var(--ecl-ink), .95)); }
+.ecl-f-dr.is-late small { color: var(--ecl-warn, rgba(var(--ecl-ink), .95)); font-weight: 400; }
+.ecl-f-dr:hover i { background: rgba(var(--ecl-ink), .25); }
+.ecl-f-what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecl-f-nr-t { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; }
+.ecl-f-dr small, .ecl-f-nr small, .ecl-f-ir small { font-size: 12px; letter-spacing: .02em; color: rgba(var(--ecl-ink), .82); white-space: nowrap; text-align: right; font-family: var(--font-interface, system-ui); }
+.ecl-f-nr small.ecl-f-in, .ecl-f-ir small.ecl-f-in { flex: none; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: rgba(var(--ecl-ink), .62); }
+.ecl-f-dr:hover .ecl-f-what, .ecl-f-nr:hover .ecl-f-what, .ecl-f-ir:hover .ecl-f-ir-t { color: rgb(var(--ecl-ink)); }
+.ecl-f-all { display: inline-block; margin-top: 12px; font-size: 13px; letter-spacing: .03em; color: rgba(var(--ecl-ink), .86); cursor: pointer; text-decoration: none; }
+.ecl-f-all::after { content: ""; display: inline-block; width: 22px; height: 1px; background: currentColor; margin-left: 10px; vertical-align: middle; opacity: .7; transition: width 200ms ease; }
+.ecl-f-all:hover { color: rgb(var(--ecl-ink)); text-decoration: none; }
+.ecl-f-all:hover::after { width: 30px; }
+.ecl-f-empty { margin-top: 4px; font-size: 14px; color: rgba(var(--ecl-ink), .68); }
+
+/* The list: subfolder tabs (they scroll sideways when there are many), then one row per note. */
+.ecl-f-tabbar { display: flex; align-items: flex-end; gap: 18px; border-bottom: 1px solid rgba(var(--ecl-ink), .12); }
+.ecl-f-tabs { flex: 1; min-width: 0; display: flex; gap: 22px; overflow-x: auto; scrollbar-width: none; padding-bottom: 9px;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); }
+.ecl-f-tabs::-webkit-scrollbar { display: none; }
+.ecl-f-tab { position: relative; flex: none; cursor: pointer; text-decoration: none; color: rgba(var(--ecl-ink), .55); letter-spacing: .14em; white-space: nowrap; }
+.ecl-f-tab-n { margin-left: 7px; letter-spacing: .04em; }
+.ecl-f-tab:hover { color: rgba(var(--ecl-ink), .85); text-decoration: none; }
+.ecl-f-tab.is-on { color: rgb(var(--ecl-ink)); }
+.ecl-f-tab.is-on::after { content: ""; position: absolute; left: 0; right: 0; bottom: -9px; height: 1px; background: rgb(var(--ecl-accent)); }
+.ecl-f-close { flex: none; padding-bottom: 9px; cursor: pointer; text-decoration: none; color: rgba(var(--ecl-ink), .6); letter-spacing: .14em; }
+.ecl-f-close .ecl-back-mark { margin-right: 6px; }
+.ecl-f-close:hover { color: rgb(var(--ecl-ink)); text-decoration: none; }
+.ecl-f-list { margin-top: 2px; }
+.ecl-f-ir { display: grid; grid-template-columns: minmax(0, 1fr) auto 64px; gap: 14px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid rgba(var(--ecl-ink), .07); cursor: pointer; }
+.ecl-f-ir-main { min-width: 0; }
+.ecl-f-ir-t { display: block; font-size: 15px; color: rgba(var(--ecl-ink), .96); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecl-f-ir-x { display: block; font-style: italic; font-size: 13px; line-height: 1.45; color: rgba(var(--ecl-ink), .72); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecl-f-ir-x.is-empty { display: none; }
+.ecl-f-sentinel { height: 1px; }
+
+/* Work folder: the same centred column as Today, up to 1800 px; the narrow rules below win when the pane is small. */
+.ecl-f-col.is-wide.is-work { max-width: 1800px; padding-left: clamp(28px, 3.5vw, 72px); padding-right: clamp(28px, 3.5vw, 72px); }
+.ecl-f-wkrow { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 0 clamp(32px, 3.5vw, 56px); align-items: start; margin-bottom: 36px; }
+.ecl-f-wkleft, .ecl-f-wkrail { min-width: 0; }
+.ecl-f-wkcal .ecl-w-top { margin-bottom: 14px; }
+.ecl-w-nav { display: inline-flex; gap: 2px; margin-right: 14px; vertical-align: baseline; }
+.ecl-w-nav a { display: inline-block; width: 24px; text-align: center; font-size: 17px; line-height: 1; color: rgba(var(--ecl-ink), .8); cursor: pointer; text-decoration: none; letter-spacing: 0; }
+.ecl-w-nav a:hover { color: rgb(var(--ecl-accent)); text-decoration: none; }
+.ecl-w-back { margin-left: 14px; color: rgba(var(--ecl-ink), .86); cursor: pointer; text-decoration: none; border-bottom: 1px solid rgba(var(--ecl-ink), .4); }
+.ecl-w-back:hover { color: rgb(var(--ecl-ink)); text-decoration: none; }
+.ecl-f-wkcard { margin-bottom: 30px; }
+.ecl-f-wkbig { font-size: 38px; line-height: 1.08; letter-spacing: -.01em; color: rgba(var(--ecl-ink), .96); }
+.ecl-f-wkbig small { margin-left: 12px; font-size: 10px; letter-spacing: .18em; color: rgba(var(--ecl-ink), .68); }
+.ecl-f-wknext .ecl-f-wkbig { color: rgb(var(--ecl-accent)); }
+.ecl-f-wkline { margin-top: 8px; font-size: 15px; line-height: 1.4; color: rgba(var(--ecl-ink), .92); }
+.ecl-f-wkthen { margin-top: 6px; font-size: 13.5px; color: rgba(var(--ecl-ink), .7); }
+.ecl-f-wkh { display: grid; grid-template-columns: 56px minmax(0, 1fr) 44px; align-items: center; gap: 12px; margin-top: 9px; font-family: var(--font-interface, system-ui); font-size: 12px; letter-spacing: .02em; color: rgba(var(--ecl-ink), .72); }
+.ecl-f-wkh:first-of-type { margin-top: 16px; }
+.ecl-f-wkh:not(.is-on) { cursor: pointer; }
+.ecl-f-wkh:not(.is-on):hover { color: rgb(var(--ecl-ink)); }
+.ecl-f-wkh-b { display: block; height: 4px; background: rgba(var(--ecl-ink), .08); }
+.ecl-f-wkh-b i { display: block; height: 100%; background: rgba(var(--ecl-ink), .5); }
+.ecl-f-wkh.is-on { color: rgb(var(--ecl-ink)); }
+.ecl-f-wkh.is-on .ecl-f-wkh-b i { background: rgba(var(--ecl-ink), .95); }
+.ecl-f-wkh-v { text-align: right; }
+.ecl-f-wkempty { max-width: 560px; padding-bottom: 12px; font-size: 15px; line-height: 1.5; color: rgba(var(--ecl-ink), .82); }
+.ecl-f-wkempty .ecl-t-lbl { margin-bottom: 12px; }
+.ecl-f-wkempty p { margin: 0 0 10px; }
+.ecl-f-wkem-h { font-style: italic; font-size: 17px; color: rgba(var(--ecl-ink), .94); }
+.ecl-f-wkempty code { display: block; margin: 0 0 12px; padding: 7px 12px; font-size: 13px; color: rgba(var(--ecl-ink), .9); background: rgba(var(--ecl-ink), .06); border-left: 2px solid rgba(var(--ecl-ink), .3); border-radius: 0; white-space: normal; overflow-wrap: anywhere; }
+.ecl-f-wkbelow { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 0 clamp(32px, 3.5vw, 56px); align-items: start; }
+.ecl-f-wkbelow > .ecl-f-sec { min-width: 0; }
+.ecl-f-wkleft > .ecl-f-wkjobs.is-under { margin-top: 28px; }
+.ecl-f-wkj-s { max-width: 190px; white-space: normal !important; }
+.ecl-f-wkj-s.is-next { color: rgb(var(--ecl-accent)) !important; }
+.ecl-f-wkhint { margin-top: 6px; font-size: 13px; line-height: 1.45; color: rgba(var(--ecl-ink), .68); }
+
+.is-narrow .ecl-f-col { padding: 16px 28px 90px; }
+.is-narrow .ecl-f-wkrow { grid-template-columns: minmax(0, 1fr); margin-bottom: 20px; }
+.is-narrow .ecl-f-wkrow .ecl-f-wkcal { overflow-x: auto; overflow-y: hidden; padding-bottom: 10px; margin-bottom: 20px; }
+.is-narrow .ecl-f-wkrow .ecl-f-wkcal .ecl-w { min-width: 560px; }
+.is-narrow .ecl-f-title { font-size: 44px; }
+.is-narrow .ecl-f-ir { grid-template-columns: minmax(0, 1fr) 58px; }
+.is-narrow .ecl-f-ir small.ecl-f-in { display: none; }
+.is-tiny .ecl-f-col { padding: 10px 20px 90px; }
+.is-tiny .ecl-f-title { font-size: 38px; }
+/* Phone header: the first actionable thing is as close to the title as it can be. */
+.is-tiny .ecl-f-crumb { margin-bottom: 8px; }
+.is-tiny .ecl-f-stats { gap: 8px 22px; margin-top: 12px; padding-bottom: 10px; }
+.is-tiny .ecl-f-stat-v { font-size: 20px; }
+.is-tiny .ecl-f-stat.is-dup { display: none; }
+.is-tiny .ecl-f-notelink { margin-left: 0; padding-bottom: 0; }
+.is-tiny .ecl-f-detect { margin-top: 6px; }
+.is-tiny .ecl-f-body { margin-top: 14px; }
+.is-tiny .ecl-f-via { margin-top: 4px; }
+.is-xs .ecl-f-head { gap: 10px; }
+.is-xs .ecl-f-eyebrow-x { display: none; }
+.is-xs .ecl-f-stats { gap: 10px 18px; }
+.is-xs .ecl-f-notelink { flex-basis: 100%; }
+.is-xs .ecl-f-title { font-size: 34px; }
+.is-xs .ecl-f-nr small.ecl-f-in { display: none; }
+
+/* ---- The Ecliptic view starts at the top of the pane ------------------
+   Its own back link and date do the header's job, so Obsidian's strip
+   (arrows, title, menu) is hidden, and while the view is the active pane the
+   status bar drops its note stats (backlinks, properties, words, characters). */
+.workspace-leaf-content[data-type="ecliptic-home"] > .view-header { display: none; }
+body.ecl-view-front .status-bar .status-bar-item:is(.plugin-backlink, .plugin-word-count, .plugin-properties, .plugin-editor-status, .mod-clickable:not(.plugin-sync)),
+body:has(.workspace-leaf.mod-active > .workspace-leaf-content[data-type="ecliptic-home"]) .status-bar .status-bar-item:is(.plugin-backlink, .plugin-word-count, .plugin-properties, .plugin-editor-status, .mod-clickable:not(.plugin-sync)) { display: none; }
+
+/* Light mode: the status bar chip bottom-right is a white box over the night sky, so while the Ecliptic pane is in front it drops its panel. */
+body.ecl-view-front:not(.ecl-themed) .status-bar { background: transparent; border-color: transparent; box-shadow: none; }
+
+/* A distant world in the free margin beside a note: faint, never over the text. */
+.ecl-corner { position: fixed; z-index: 2; pointer-events: none; opacity: .42; display: none; }
+
+/* ---- One-dot transition -------------------------------------------
+   The moon folds into a dot that flies to the page's heading (drawn on
+   .ecl-dot by the view). While it flies the orbit scene lets go quickly and
+   the page rises in just before the dot lands; the camera does not zoom. */
+.ecl-dot { position: absolute; left: 0; top: 0; z-index: 5; pointer-events: none; opacity: 1; transition: opacity 320ms ease 60ms; }
+.ecl-dot.is-gone { opacity: 0; }
+/* The page flight drives the scene and the page frame by frame (see pageFlight), so the
+   containers themselves do not animate; the page parts and the art carry their own timing. */
+.ecl-view.is-dot .ecl-landing { transform: none; transition: none; }
+.ecl-view.is-dot.is-landing .ecl-landing { opacity: 1; visibility: visible; transition: none; }
+.ecl-view.is-dot .ecl-orbit { transition: none !important; }
+.ecl-view.is-dot .ecl-art { transition: transform 1000ms cubic-bezier(.2, .7, .2, 1), opacity 650ms ease; }
+@media (prefers-reduced-motion: reduce) { .ecl-dot { display: none; } }
+
+/* ---- Phone home: the snap row of moons ------------------------------
+   Today first; the chosen moon sits in the middle and is lit. */
+.ecl-dial-strip {
+  position: absolute; left: 0; right: 0; height: 58px; z-index: 2;
+  display: flex; gap: 4px; overflow-x: auto; overflow-y: hidden;
+  /* The row always starts at the left (Today first), so it sits in one place on Home and on the dial; the chosen moon scrolls toward the
+     middle only as far as the row allows. Chips are 68 px on a 72 px pitch, so on a 390 px phone the sixth one peeks in under the edge fade. */
+  padding: 0; scrollbar-width: none;
+  /* Snaps to chip boundaries: at rest a chip is wholly in view or wholly under Today, never a clipped word beside it (the end of the row is padded to a whole number of chips, see buildRow). */
+  scroll-snap-type: x mandatory; scroll-padding-left: 76px;
+  /* Only the right edge fades, and only over its last 5 px: the names that are fully in view stay at full ink, a name that is cut hides (is-cut) and a sliver
+     of the next moon (leaning in, is-cut-r) says there are more. At the end of the row the fade goes (is-end). */
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 5px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 5px), transparent 100%);
+}
+.ecl-dial-strip.is-end { -webkit-mask-image: none; mask-image: none; }/* Today stays pinned at the left edge once the row is scrolled past it, on a scrim so the moons that slide under it vanish cleanly. */
+.ecl-dial-strip > .ecl-dial-chip:first-child {
+  position: sticky; left: 0; z-index: 2; flex-basis: 72px; border-radius: 0 !important; /* a button is a pill by default: the scrim needs square corners or the moons sliding under it show at the corners */ box-sizing: border-box; padding-left: 4px; /* the same place scrolled or not: the row has no left padding, the first chip carries its own */
+}
+.ecl-dial-strip > .ecl-dial-chip:first-child { opacity: 1; } /* the chip itself stays opaque so its scrim fully hides what slides under it; the art carries the dimming */
+.ecl-dial-strip > .ecl-dial-chip:first-child:not(.is-on) .ecl-dial-chip-art { opacity: .78; }
+/* No backing box behind Today (on a tinted sky it showed as a rectangle): the moons that slide in under it fade out first (--ecl-slide, set in the row's scroll handler). */
+.ecl-dial-strip > .ecl-dial-chip:not(:first-child) .ecl-dial-chip-art, .ecl-dial-strip > .ecl-dial-chip:not(:first-child).is-on::after { opacity: var(--ecl-slide, 1); }
+.ecl-dial-strip::-webkit-scrollbar { display: none; }
+.ecl-dial-pad { flex: 0 0 0; height: 1px; pointer-events: none; }
+.ecl-dial-chip { scroll-snap-align: start; }
+.ecl-dial-strip > .ecl-dial-chip:first-child { scroll-snap-align: none; }
+.ecl-dial-chip {
+  flex: 0 0 68px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0; height: 58px; cursor: pointer;
+  color: rgba(var(--ecl-ink), .66); opacity: .78; transition: opacity 220ms ease, color 220ms ease;
+}
+.ecl-dial-chip.is-on { opacity: 1; color: rgb(var(--ecl-accent)); }
+.ecl-dial-chip { position: relative; }
+.ecl-dial-strip > .ecl-dial-chip:first-child { position: sticky; } /* (stays sticky: the relative above must not win) */
+.ecl-dial-chip.is-on::after { content: ""; position: absolute; left: 50%; bottom: 1px; width: 16px; height: 2px; margin-left: -8px; background: rgb(var(--ecl-accent)); pointer-events: none; }
+.ecl-dial-chip-art { display: flex; align-items: center; justify-content: center; flex: none; width: 34px; height: 34px; }
+.ecl-dial-chip canvas { flex: none; }
+.ecl-dial-chip.is-cut .ecl-dial-chip-name { opacity: 0; }
+.ecl-dial-chip-art { transition: transform 200ms ease; }
+.ecl-dial-chip.is-cut-r .ecl-dial-chip-art { transform: translateX(-9px); } /* the moon of a chip cut at the right edge leans in: a disc sliver (no text) says there are more folders */
+.ecl-dial-chip-name { transition: opacity 160ms ease; text-transform: uppercase; letter-spacing: .12em; font-size: 9px; white-space: nowrap; max-width: 66px; overflow: hidden; text-overflow: ellipsis; }
+
+/* Phone: while a page flight runs, the card and the row of moons step aside (they come back when it ends). */
+.ecl-view.is-dot.is-dial .ecl-dial, .ecl-view.is-dot.is-dial .ecl-dial-strip { opacity: 0 !important; transition: opacity 220ms ease; }
+
+/* Phone folder page: rows with no date column start at the heading's left edge. */
+.ecl-dial-row.is-bare { grid-template-columns: 1fr; }
+
+/* ---- Notes in the Ecliptic language -------------------------------------
+   Tags are small spaced words in the signal colour, the properties block is
+   quiet, tasks are hairline circles, tables are horizontal hairlines only,
+   code and highlight are a faint ground-2 tint. No pills, no rounded boxes. */
+body.ecl-themed.theme-dark :is(a.tag, .cm-hashtag.cm-meta, .cm-hashtag-begin, .cm-hashtag-end) {
+  background: transparent; border: 0; border-radius: 0; padding: 0; box-shadow: none;
+  color: var(--ecl-t-signal); font-size: 0.82em; letter-spacing: 0.1em; text-transform: lowercase;
+}
+body.ecl-themed.theme-dark a.tag { border-bottom: 1px solid rgba(var(--ecl-t-signal-rgb), 0.3); }
+body.ecl-themed.theme-dark a.tag:hover { border-bottom-color: var(--ecl-t-signal); }
+body.ecl-themed.theme-dark :is(.cm-hashtag-begin, .cm-hashtag-end) { padding: 0; margin: 0; }
+body.ecl-themed.theme-dark .multi-select-pill {
+  background: transparent; border: 0; border-radius: 0; box-shadow: none; padding: 0 12px 0 0; color: var(--ecl-t-signal);
+  font-size: 0.82em; letter-spacing: 0.1em;
+}
+body.ecl-themed.theme-dark .multi-select-pill-content { color: var(--ecl-t-signal); }
+body.ecl-themed.theme-dark .multi-select-pill-remove-button { color: rgba(var(--ecl-t-ink), 0.35); }
+body.ecl-themed.theme-dark .multi-select-pill-remove-button:hover { color: rgb(var(--ecl-t-ink)); }
+
+body.ecl-themed.theme-dark .metadata-container { --metadata-label-text-color: rgba(var(--ecl-t-ink), 0.62); } /* ON2 A3: up from 0.42 */
+body.ecl-themed.theme-dark .metadata-properties-heading,
+body.ecl-themed.theme-dark .metadata-container .metadata-properties-title {
+  font-size: 10px; font-weight: 400; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(var(--ecl-t-ink), 0.4);
+}
+body.ecl-themed.theme-dark .metadata-property { border: 0; background: transparent; }
+body.ecl-themed.theme-dark .metadata-property-key { color: rgba(var(--ecl-t-ink), 0.62); }
+body.ecl-themed.theme-dark .metadata-property-key .metadata-property-key-input,
+body.ecl-themed.theme-dark .metadata-property-key .metadata-property-name { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; }
+body.ecl-themed.theme-dark .metadata-property-icon { opacity: 0.45; }
+body.ecl-themed.theme-dark .metadata-add-button { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(var(--ecl-t-ink), 0.4); }
+body.ecl-themed.theme-dark .metadata-add-button:hover { background: transparent; color: rgb(var(--ecl-t-ink)); }
+
+body.ecl-themed.theme-dark input[type="checkbox"],
+body.ecl-themed.theme-dark .markdown-rendered input[type="checkbox"],
+body.ecl-themed.theme-dark .markdown-source-view.mode-source input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box;
+  background: transparent; border: 1px solid rgba(var(--ecl-t-ink), 0.5); box-shadow: none; filter: none;
+}
+body.ecl-themed.theme-dark input[type="checkbox"]:hover { border-color: rgb(var(--ecl-t-ink)); }
+body.ecl-themed.theme-dark input[type="checkbox"]:checked,
+body.ecl-themed.theme-dark input[type="checkbox"][data-task]:not([data-task=" "]) {
+  background: radial-gradient(circle, var(--ecl-t-signal) 0 34%, transparent 40%); border-color: var(--ecl-t-signal);
+}
+body.ecl-themed.theme-dark input[type="checkbox"]:checked::after { display: none; }
+body.ecl-themed.theme-dark .task-list-item-checkbox:checked { background-color: transparent; }
+body.ecl-themed.theme-dark .markdown-rendered .task-list-item.is-checked,
+body.ecl-themed.theme-dark .markdown-source-view.mode-source .HyperMD-task-line[data-task]:not([data-task=" "]) {
+  color: rgba(var(--ecl-t-ink), 0.45); text-decoration-color: rgba(var(--ecl-t-ink), 0.25);
+}
+
+body.ecl-themed.theme-dark :is(.markdown-rendered, .markdown-source-view) table { border: 0; border-collapse: collapse; }
+body.ecl-themed.theme-dark :is(.markdown-rendered, .markdown-source-view) :is(th, td) {
+  border: 0; border-bottom: 1px solid var(--ecl-hair); background: transparent; padding: 7px 18px 7px 0;
+}
+body.ecl-themed.theme-dark :is(.markdown-rendered, .markdown-source-view) th {
+  font-size: 10px; font-weight: 400; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(var(--ecl-t-ink), 0.68); /* ON2 A3: up from 0.5 */
+  border-bottom-color: var(--ecl-hair-strong);
+}
+body.ecl-themed.theme-dark :is(.markdown-rendered, .markdown-source-view) tr:last-child td { border-bottom-color: var(--ecl-hair); }
+
+body.ecl-themed.theme-dark :is(.markdown-rendered, .markdown-source-view) :is(code, .cm-inline-code) {
+  background: var(--ecl-ground-2); border-radius: 0; color: rgba(var(--ecl-t-ink), 0.8);
+}
+body.ecl-themed.theme-dark :is(.markdown-rendered mark, .cm-highlight) {
+  background: color-mix(in srgb, rgb(var(--ecl-t-signal-rgb)) 16%, var(--ecl-t-ground)); color: rgb(var(--ecl-t-ink)); border-radius: 0; /* ON2: faint accent wash as well as the underline */
+  box-shadow: inset 0 -1px 0 rgba(var(--ecl-t-signal-rgb), 0.5);
+}
+/* ---- Phone: clear the floating nav; no dead band under the status bar ---- */
+body.is-phone { --ecl-nav-clear: calc(var(--navbar-height, 52px) + max(var(--safe-area-inset-bottom, 0px), 32px) + 8px); }
+.is-phone .ecl-t-col { bottom: var(--ecl-nav-clear, var(--ecl-status-h, 26px)) !important; }
+.is-phone .ecl-f-col { padding-bottom: calc(var(--ecl-nav-clear) + 24px); }
+.is-phone .markdown-preview-sizer, .is-phone .cm-content { padding-bottom: calc(var(--ecl-nav-clear) + 16px) !important; }
+/* ON7 Y3, AA2: the end of a note already clears the floating toolbar (padding above); mid-scroll, text passes under it, so it dissolves instead of being cut through a line. The fade starts at the last line's bottom edge (never fades it) and is gone by the toolbar's top, so no letter shows in the gutters beside the pill. */
+.is-phone.ecl-themed .workspace-leaf-content[data-type="markdown"] :is(.cm-scroller, .markdown-preview-view) { -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - var(--ecl-nav-clear) - 16px), transparent calc(100% - var(--ecl-nav-clear) + 14px)); mask-image: linear-gradient(180deg, #000 calc(100% - var(--ecl-nav-clear) - 16px), transparent calc(100% - var(--ecl-nav-clear) + 14px)); }
+.is-phone .workspace-leaf-content[data-type="ecliptic-home"] { background: var(--ecl-top, rgb(13, 13, 16)); }
+.is-phone .workspace-leaf-content[data-type="ecliptic-home"] .view-content.ecl-view { margin-top: var(--safe-area-inset-top, 0px); }
+.is-phone .workspace-leaf-content[data-type="ecliptic-home"] .view-content.ecl-view.is-landing:has(.ecl-landing.is-today) { margin-top: 0; }
+.is-phone .ecl-t-note { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* The sky starts under the status bar band: fade its top edge in so there is no seam against the band colour. */
+.is-phone .workspace-leaf-content[data-type="ecliptic-home"] .ecl-view canvas:not(.ecl-dial-chip canvas):not(.ecl-t-moon) { -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 14px); mask-image: linear-gradient(180deg, transparent 0, #000 14px); } /* (ON2 P3: 14px, not 44, so the date line is not half-masked) */
+
+/* ---- Ecliptic settings tab (scoped to .ecl-settings) ---- */
+.ecl-settings .ecl-set-folder .setting-item-control input[type="text"] { width: 150px; }
+/* Fallback values (folder label, daily note folder, place, coordinates) are true placeholders: faint and italic, so they never read as something typed. (ON4 R5) */
+.ecl-settings input[type="text"]::placeholder, .ecl-settings .ecl-set-folder .setting-item-control input[type="text"]::placeholder { color: var(--text-faint); opacity: 0.8; font-style: italic; }
+/* Folder rows (ON2 A2): one bordered group - intro, column heads and compact rows share it, no gaps between cards. */
+/* Filled like the other setting cards (same fill and radius variables), not an outlined box. (ON3 B2) */
+.ecl-settings .ecl-set-folders { background: var(--setting-items-background, var(--background-secondary)); border: 0; border-radius: var(--setting-items-radius, 10px); overflow: hidden; padding-bottom: 6px; margin: 0 0 var(--size-4-4, 16px); }
+.ecl-settings .ecl-set-folders .setting-item { background: transparent; border: 0; border-radius: 0; margin: 0; box-shadow: none; }
+.ecl-settings .ecl-set-folders .setting-item.ecl-set-folder { padding: 6px 14px; min-height: 0; border-top: 1px solid var(--background-modifier-border); }
+.ecl-settings .ecl-set-folders .setting-item.ecl-set-folder:nth-child(3) { border-top: 0; }
+.ecl-settings .ecl-set-folders .setting-item:first-child { padding-bottom: 6px; }
+.ecl-settings .ecl-set-folders .setting-item.ecl-set-folder { align-items: center; }
+.ecl-settings .ecl-set-folder .setting-item-info { margin: 0; }
+.ecl-settings .ecl-set-folder .setting-item-description:empty { display: none; }
+.ecl-settings .ecl-set-folder .setting-item-control { gap: 8px; }
+.ecl-settings .ecl-set-colhead {
+  display: flex; justify-content: flex-end; gap: 8px; padding: 6px 14px 4px 0; margin: 0;
+  font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint); white-space: nowrap;
+}
+.ecl-settings .ecl-set-folders .ecl-set-colhead { padding-right: 14px; }
+.ecl-settings .ecl-set-colhead span:first-child { width: 150px; padding-left: 8px; }
+.ecl-settings .ecl-set-colhead span:last-child { width: 40px; text-align: center; }
+/* Worlds in rotation: the row and its grid share one filled card. */
+.ecl-settings .ecl-set-card { background: var(--setting-items-background, var(--background-secondary)); border-radius: var(--setting-items-radius, 10px); overflow: hidden; padding-bottom: 8px; margin: 0 0 var(--size-4-4, 16px); }
+.ecl-settings .ecl-set-card .setting-item { background: transparent; border: 0; border-radius: 0; margin: 0; box-shadow: none; padding-bottom: 6px; }
+.ecl-settings .ecl-set-card .ecl-set-worlds { margin: 0; padding: 0 var(--size-4-4, 16px); }
+/* Worlds in rotation: a flat grid of cells (glyph, name, tick), no filled pills. Off cells step back to hairline and faint text. */
+.ecl-settings .ecl-set-worlds {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 0 var(--size-4-4, 16px);
+  padding: 0 var(--size-4-3, 12px); margin: -2px 0 var(--size-4-2, 8px);
+}
+.ecl-settings .ecl-set-world {
+  display: flex; align-items: center; gap: 10px; width: 100%; height: auto; min-height: 36px; padding: 6px 2px;
+  background: transparent; box-shadow: none; border: 0; border-bottom: 1px solid var(--background-modifier-border);
+  border-radius: 0; color: var(--text-faint); font-size: var(--font-ui-small, 13px); text-align: left; cursor: pointer;
+}
+.ecl-settings .ecl-set-world:hover { background: transparent; color: var(--text-muted); }
+.ecl-settings .ecl-set-world.is-on { color: var(--text-normal); }
+.ecl-settings .ecl-set-wname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecl-settings .ecl-set-check { display: inline-flex; width: 14px; height: 14px; opacity: 0; color: var(--text-muted); }
+.ecl-settings .ecl-set-check svg { width: 14px; height: 14px; }
+.ecl-settings .ecl-set-world.is-on .ecl-set-check { opacity: 1; }
+.ecl-settings .ecl-set-glyph { position: relative; flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--g); opacity: 0.4; }
+.ecl-settings .ecl-set-world.is-on .ecl-set-glyph { opacity: 1; }
+.ecl-settings .ecl-set-glyph.is-jupiter { background: repeating-linear-gradient(180deg, var(--g) 0 2px, color-mix(in srgb, var(--g) 45%, #000) 2px 4px); }
+.ecl-settings .ecl-set-glyph.is-pluto { width: 10px; height: 10px; margin: 2px; }
+.ecl-settings .ecl-set-glyph.is-saturn::after {
+  content: ""; position: absolute; left: -4px; right: -4px; top: 5px; height: 4px; border: 1px solid var(--g); border-radius: 50%; transform: rotate(-18deg);
+}
+.ecl-settings .ecl-set-glyph.is-blackhole { background: #000; box-shadow: inset 0 0 0 1.5px var(--g), 0 0 5px var(--g); }
+.ecl-settings .ecl-set-glyph.is-betelgeuse { box-shadow: 0 0 7px 1px var(--g); }
+/* Tint accents reads inactive while the whole-app theme is on. */
+.ecl-settings .setting-item.ecl-set-inactive .setting-item-name,
+.ecl-settings .setting-item.ecl-set-inactive .setting-item-description { opacity: 0.5; }
+.ecl-settings .setting-item.ecl-set-inactive .checkbox-container { opacity: 0.35; pointer-events: none; }
+/* Phone settings: the sticky "Ecliptic" header is transparent in Obsidian, so scrolled rows showed through it. Give it the modal's own ground. (ON3 B1) */
+.is-phone .modal.mod-settings:has(.ecl-settings) .modal-header { background: var(--background-primary); }
+/* Section headings in the house serif, as on the Ecliptic pages. */
+.ecl-settings .setting-item-heading .setting-item-name {
+  font-family: "Iowan Old Style", "Source Serif 4", "Source Serif Pro", "Palatino Linotype", Georgia, serif;
+  font-size: 1.3em; font-weight: 500; letter-spacing: 0.01em; color: var(--text-normal);
+}
+
+/* Empty vault: the one next step under the planet. A plain spaced label with a hairline underline, no box
+   (Obsidian's own button rule draws a box-shadow outline and padding, hence the doubled selector and !important). */
+.ecl-host .ecl-empty-open.ecl-empty-open {
+  position: absolute; z-index: 2; box-sizing: border-box; margin: 0; padding: 0 0 2px; height: auto;
+  display: flex; align-items: center; justify-content: center;
+  background: none !important; border: 0 !important; border-bottom: 1px solid rgba(var(--eo-c, 200,200,200), 0.55) !important; border-radius: 0 !important; box-shadow: none !important;
+  color: rgba(var(--eo-c, 200,200,200), 0.9); letter-spacing: 0.2em; text-indent: 0.2em; text-transform: uppercase; font-weight: 400;
+  cursor: pointer; transition: color 0.18s, border-color 0.18s;
+}
+.ecl-host .ecl-empty-open.ecl-empty-open:hover, .ecl-host .ecl-empty-open.ecl-empty-open:focus-visible { color: rgb(var(--eo-c, 255,255,255)); border-bottom-color: rgba(var(--eo-c, 255,255,255), 0.95) !important; background: none !important; box-shadow: none !important; }
+.ecl-host .ecl-empty-open.ecl-empty-open:focus-visible { outline: 1px solid rgba(var(--eo-c, 255,255,255), 0.6); outline-offset: 4px; }
+
+/* Empty vault, second action (ON3 B3): "New folder" is a quiet spaced label - no underline until hover or focus, no box. */
+.ecl-host .ecl-empty-new.ecl-empty-new {
+  position: absolute; z-index: 2; box-sizing: border-box; margin: 0; padding: 0; height: auto;
+  display: flex; align-items: center; justify-content: center;
+  background: none !important; border: 0 !important; border-bottom: 1px solid rgba(var(--ecl-ink, 235,235,235), 0.32) !important; border-radius: 0 !important; box-shadow: none !important;
+  color: rgba(var(--ecl-ink, 235,235,235), 0.92); letter-spacing: 0.18em; text-indent: 0.18em; text-transform: uppercase; font-weight: 400;
+  cursor: pointer; transition: color 0.18s, border-color 0.18s;
+}
+.ecl-host .ecl-empty-new.ecl-empty-new:hover, .ecl-host .ecl-empty-new.ecl-empty-new:focus-visible { color: rgb(var(--eo-c, 255,255,255)); border-bottom-color: rgba(var(--eo-c, 255,255,255), 0.7) !important; background: none !important; box-shadow: none !important; }
+.ecl-host .ecl-empty-new.ecl-empty-new:focus-visible { outline: 1px solid rgba(var(--eo-c, 255,255,255), 0.6); outline-offset: 4px; }
+
+/* Phone, empty vault: the dial card's one next step ("Open Today"), then the quiet "New folder" action and, below both, the two-line hint, in the same plain spaced-label style as the desk Home. */
+.ecl-dial.is-empty > * { flex-shrink: 0; }
+.ecl-dial.is-empty { height: auto !important; } /* the card is sized for one note row; with the buttons and hint it ran past the fixed height and the hint's last line was clipped */
+.ecl-dial-hint { font-size: 13px; line-height: 1.5; color: rgba(var(--ecl-ink), .74); padding: 14px 0 0; text-align: left; }
+.ecl-dial-hint > span { display: block; }
+.ecl-dial .ecl-dial-new.ecl-dial-new {
+  display: block; margin: 8px 0 0; padding: 4px 0 3px; height: auto; background: none !important; border: 0 !important; border-bottom: 1px solid rgba(var(--ecl-ink), .32) !important; border-radius: 0 !important; box-shadow: none !important;
+  font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 400; color: rgba(var(--ecl-ink), .9); cursor: pointer;
+}
+.ecl-dial .ecl-dial-new.ecl-dial-new:hover, .ecl-dial .ecl-dial-new.ecl-dial-new:focus-visible { color: rgb(var(--ecl-accent, var(--ecl-ink))); border-bottom-color: rgba(var(--ecl-accent, var(--ecl-ink)), .6) !important; }
+.ecl-dial .ecl-dial-open.ecl-dial-open, .ecl-dial-open.ecl-dial-open {
+  display: inline-block; margin: 12px 0 0; padding: 4px 0 3px; height: auto; background: none !important; border: 0 !important; border-bottom: 1px solid rgba(var(--ecl-accent, var(--ecl-ink)), .6) !important; border-radius: 0 !important; box-shadow: none !important;
+  font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 400; color: rgb(var(--ecl-accent, var(--ecl-ink))); cursor: pointer;
+}
+
+/* Light mode (ON4 R4, ON5 U1): the plugin pane stays dark; one quiet line says why, with a dismiss (remembered in data). No pill, no card: the line sits on
+   its own feathered band of the pane's ground so it never reads over the planet or moon stipple, and it sits 24+ px above the footer date line. */
+.ecl-lightnote { position: absolute; z-index: 6; right: 32px; bottom: calc(var(--ecl-nav-clear, 0px) + 66px); width: max-content; max-width: max(300px, min(410px, calc(100% - 32px - 348px))); display: flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 6px 5px 16px;
+  background: color-mix(in srgb, var(--ecl-bg, #0d0d10) 90%, transparent); box-shadow: 0 0 8px 4px color-mix(in srgb, var(--ecl-bg, #0d0d10) 90%, transparent);
+  font-family: "Iowan Old Style", "Source Serif 4", "Source Serif Pro", "Palatino Linotype", Georgia, serif; font-style: italic; font-size: 13px; line-height: 1.45; letter-spacing: .02em; text-align: right; color: rgba(var(--ecl-ink, 235,235,235), .84); pointer-events: none; }
+.ecl-lightnote > * { pointer-events: auto; }
+/* On the phone the foot of the pane holds the actions and the toolbar, so the line sits in the quiet strip under the date line instead (ON5 U1b). */
+.is-phone .ecl-lightnote { right: auto; bottom: auto; top: 44px; left: 50%; transform: translateX(-50%); width: calc(100% - 32px); max-width: 680px; padding: 2px 4px 2px 12px; font-size: 12.5px; line-height: 1.4; text-align: center; }
+.ecl-lightnote .ecl-lightnote-x.ecl-lightnote-x { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-width: 28px; margin: 0; padding: 0; background: none !important; border: 0 !important; box-shadow: none !important; font-size: 24px; font-weight: 300; line-height: 1; color: rgba(var(--ecl-ink, 235,235,235), .72); cursor: pointer; }
+/* First-open "Theme the whole app?": the same strip, two plain text buttons divided by hairlines. */
+.ecl-themeprompt { gap: 14px; padding-right: 12px; }
+.ecl-themeprompt .ecl-themeprompt-btn.ecl-themeprompt-btn { flex: none; margin: 0; padding: 4px 10px; min-height: 28px; background: none !important; border: 0 !important; border-bottom: 1px solid rgba(var(--ecl-ink, 235,235,235), .3) !important; border-radius: 0 !important; box-shadow: none !important; font: inherit; font-style: normal; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: rgba(var(--ecl-ink, 235,235,235), .84); cursor: pointer; }
+.ecl-themeprompt .ecl-themeprompt-btn.ecl-themeprompt-btn:hover { color: rgb(var(--ecl-ink, 235,235,235)); border-bottom-color: rgba(var(--ecl-accent, 200,170,100), .8) !important; }
+.is-phone .ecl-themeprompt { flex-wrap: wrap; }
+.ecl-lightnote .ecl-lightnote-x.ecl-lightnote-x:hover,.ecl-lightnote .ecl-lightnote-x.ecl-lightnote-x:focus-visible { color: rgb(var(--ecl-ink, 235,235,235)); }
+
+/* ON5 U7: phone secondary text one ink step up (the dial's count and empty line, Today's phase line, its section labels and the "N done" fold). */
+body.is-phone .ecl-dial-meta { color: rgba(var(--ecl-ink), .54); }
+body.is-phone .ecl-dial-empty { color: rgba(var(--ecl-ink), .66); }
+.is-phone .ecl-t-place { color: rgba(var(--ecl-ink), .68); }
+.is-phone .ecl-t-lbl { color: rgba(var(--ecl-ink), .76); }
+.is-phone .ecl-t-task.is-fold { color: rgba(var(--ecl-ink), .76); }
+
+/* ON5 U8: on the phone the note's Properties lose Obsidian's rounded filled box; one hairline under them separates them from the text, as on desktop. */
+body.is-phone.ecl-themed .metadata-container,
+body.is-phone.ecl-themed .metadata-properties,
+body.is-phone.ecl-themed .metadata-content,
+body.is-phone.ecl-themed .metadata-properties-heading { background: transparent !important; background-color: transparent !important; border-radius: 0 !important; box-shadow: none !important; }
+body.is-phone.ecl-themed .metadata-container { border: 0 !important; border-bottom: 1px solid rgba(var(--ecl-t-ink), .14) !important; padding-bottom: 8px; margin-bottom: 14px; }
+
+/* ON7 Y5: phone - one ink step up on PROPERTIES / ADD PROPERTY, and 3px more between a list bullet and its text (the marker grows, the hanging indent grows with it so wrapped lines still align). */
+body.is-phone.ecl-themed.theme-dark .metadata-properties-heading,
+body.is-phone.ecl-themed.theme-dark .metadata-container .metadata-properties-title,
+body.is-phone.ecl-themed.theme-dark .metadata-add-button { color: rgba(var(--ecl-t-ink), .54); }
+body.is-phone.ecl-themed .cm-formatting-list-ul { padding-inline-end: 3px; }
+body.is-phone.ecl-themed .HyperMD-list-line-1 { padding-inline-start: 24px !important; text-indent: -24px !important; }
+body.is-phone.ecl-themed .HyperMD-list-line-2 { padding-inline-start: 32px !important; text-indent: -32px !important; }
+body.is-phone.ecl-themed .HyperMD-list-line-3 { padding-inline-start: 40px !important; text-indent: -40px !important; }
+body.is-phone.ecl-themed .HyperMD-list-line-4 { padding-inline-start: 48px !important; text-indent: -48px !important; }
+.ecl-t-task.is-sched i { display: none; }
+.ecl-t-task.is-sched { padding-left: 19px; }
+
+/* ---- Today, wide (option B): hero with the whole moon, then the week ------------------ */
+.ecl-landing.is-today.is-wide { overflow-x: hidden; overflow-y: auto; scrollbar-width: none; }
+.ecl-landing.is-today.is-wide::-webkit-scrollbar { display: none; }
+.is-wide .ecl-t-page { position: relative; padding-bottom: calc(var(--ecl-status-h, 26px) + 28px); }
+.is-wide .ecl-t-hero { position: relative; }
+.is-wide .ecl-t-wcol { overflow: visible; -webkit-mask-image: none; mask-image: none; padding: 0; }
+.is-wide .ecl-t-title { font-size: clamp(52px, 4vw, 68px); }
+.is-wide .ecl-t-place { margin: 8px 0 26px; }
+.is-wide .ecl-t-sunlist { margin: -14px 0 24px; }
+.is-wide .ecl-t-grid { display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 0 40px; align-items: start; }
+.is-wide .ecl-t-grid .ecl-t-sec { margin-bottom: 0; min-width: 0; }
+.is-wide .ecl-t-wcol.is-two .ecl-t-grid { grid-template-columns: 1fr 1.2fr; gap: 22px 32px; }
+.is-wide .ecl-t-wcol.is-two .ecl-t-sec.is-tasks { grid-column: 2; grid-row: 1 / span 2; }
+.is-wide .ecl-t-wcol.is-two .ecl-t-sec.is-note { grid-column: 1; }
+.is-wide .ecl-t-wcol.is-two .ecl-t-sec.is-recent { grid-column: 1; }
+.is-wide .ecl-t-task i { width: 13px; height: 13px; cursor: pointer; }
+.is-wide .ecl-t-task:not(.is-done) i:hover { background: rgba(var(--ecl-accent), .35); border-color: rgb(var(--ecl-accent)); }
+.is-wide .ecl-t-task.is-done:not(.is-fold) .ecl-t-what { opacity: .6; }
+
+.ecl-t-week { padding: 6px var(--ecl-wpad, 56px) 0; margin: 0 auto; box-sizing: border-box; }
+.ecl-t-shiftline { color: rgba(var(--ecl-ink), .78); }
+/* a task title wraps to two lines before the ellipsis; the meta stays on the first line, right-aligned */
+.is-wide .ecl-t-task { align-items: flex-start; padding: 6px 0; min-height: 32px; }
+.is-wide .ecl-t-task i { margin-top: 3px; }
+.is-wide .ecl-t-task .ecl-t-what { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.35; overflow-wrap: anywhere; }
+.is-wide .ecl-t-task small { margin-top: 2px; }
+/* the meta (due, folder, overdue) sits under the title, so the title gets the whole row width */
+.is-wide .ecl-t-task:not(.is-more):not(.is-fold):not(.is-sched) { display: grid; grid-template-columns: 13px minmax(0, 1fr); column-gap: 10px; row-gap: 1px; align-items: start; }
+.is-wide .ecl-t-task:not(.is-more):not(.is-fold):not(.is-sched) i { grid-row: 1 / span 2; grid-column: 1; }
+.is-wide .ecl-t-task:not(.is-more):not(.is-fold):not(.is-sched) .ecl-t-what { grid-column: 2; }
+.is-wide .ecl-t-task:not(.is-more):not(.is-fold):not(.is-sched) small { grid-column: 2; margin-top: 0; white-space: normal; }
+.is-wide .ecl-t-task.is-more, .is-wide .ecl-t-task.is-fold { align-items: center; padding: 0 0 0 19px; }
+.is-wide .ecl-t-task.is-more .ecl-t-what, .is-wide .ecl-t-task.is-fold .ecl-t-what { display: block; white-space: nowrap; }
+/* wide windows: the type steps up with the column */
+.is-wide.is-big .ecl-t-title { font-size: clamp(64px, 3.6vw, 92px); }
+.is-wide.is-big .ecl-t-task, .is-wide.is-big .ecl-t-recent { font-size: 15.5px; }
+.is-wide.is-big .ecl-t-note { font-size: 16px; }
+.is-wide.is-big .ecl-t-task small, .is-wide.is-big .ecl-t-recent small { font-size: 12.5px; }
+.is-wide.is-big .ecl-t-place, .is-wide.is-big .ecl-t-setplace { font-size: 15.5px; }
+.is-wide.is-big .ecl-w { font-size: 13px; }
+.is-wide.is-big .ecl-w-dn { font-size: 26px; }
+.ecl-w-top { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; flex-wrap: wrap; margin-bottom: 12px; }
+.ecl-w-title { color: rgba(var(--ecl-ink), .66); }
+.ecl-w-gold { color: rgb(var(--ecl-accent)); }
+.ecl-w-legend { display: flex; gap: 20px; flex-wrap: wrap; color: rgba(var(--ecl-ink), .6); }
+.ecl-w-key::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: rgb(var(--tone, var(--ecl-ink))); vertical-align: 0; }
+.ecl-w-key.is-note::before { background: none; border: 1px solid rgba(var(--ecl-ink), .6); box-sizing: border-box; }
+.ecl-w-key.is-due::before { border-radius: 1px; background: rgb(var(--ecl-accent)); }
+.ecl-w-key.is-next::before { background: rgb(var(--ecl-accent)); box-shadow: 0 0 0 2px rgba(var(--ecl-accent), .3); }
+.ecl-w { display: grid; grid-template-columns: 44px repeat(7, minmax(0, 1fr)); font-size: 12px; position: relative; }
+.ecl-w-gut { position: relative; }
+.ecl-w-gut span { position: absolute; right: 8px; transform: translateY(-50%); font-size: 10.5px; letter-spacing: .04em; color: rgba(var(--ecl-ink), .5); }
+.ecl-w-hd { padding: 0 8px 10px; border-bottom: 1px solid rgba(var(--ecl-ink), .14); }
+.ecl-w-hd .ecl-caps { font-size: 10px; color: rgba(var(--ecl-ink), .64); }
+.ecl-w-hr { display: flex; align-items: center; gap: 9px; margin-top: 4px; }
+.ecl-w-dn { font: 400 22px/1 var(--ecl-serif, Georgia, serif); color: rgba(var(--ecl-ink), .94); }
+.ecl-w-nd { width: 6px; height: 6px; border-radius: 50%; border: 1px solid rgba(var(--ecl-ink), .55); box-sizing: border-box; }
+.ecl-w-nd.is-on { background: rgba(var(--ecl-ink), .85); border-color: transparent; }
+.ecl-w-hd.is-link { cursor: pointer; }
+.ecl-w-hd.is-past { opacity: .5; }
+.ecl-w-hd.is-today .ecl-caps, .ecl-w-hd.is-today .ecl-w-dn { color: rgb(var(--ecl-accent)); }
+.ecl-w-allday { grid-column: 1 / -1; display: grid; grid-template-columns: 44px repeat(7, minmax(0, 1fr)); border-bottom: 1px solid rgba(var(--ecl-ink), .08); }
+.ecl-w-adc { padding: 5px 5px; border-left: 1px solid rgba(var(--ecl-ink), .06); min-height: 30px; display: flex; flex-direction: column; gap: 3px; }
+.ecl-w-adc.is-past { opacity: .55; }
+.ecl-w-due { font-size: 11px; line-height: 1.25; padding: 2px 6px; color: rgb(var(--ecl-accent)); border-left: 2px solid rgb(var(--ecl-accent)); background: rgba(var(--ecl-accent), .1); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecl-w-due.is-overdue { color: var(--ecl-warn, rgb(var(--ecl-accent))); border-left-color: var(--ecl-warn, rgb(var(--ecl-accent))); background: rgba(var(--ecl-ink), .05); }
+.ecl-w-col { position: relative; border-left: 1px solid rgba(var(--ecl-ink), .06); }
+.ecl-w-col.is-today { background: rgba(var(--ecl-ink), .025); }
+.ecl-w-col.is-past { background: rgba(0, 0, 0, .18); }
+.ecl-w-hl { position: absolute; left: 0; right: 0; border-top: 1px solid rgba(var(--ecl-ink), .06); }
+.ecl-w-ev { position: absolute; overflow: hidden; padding: 5px 8px; box-sizing: border-box; border-left: 2px solid rgb(var(--tone)); background: rgba(var(--ecl-ink), .075); cursor: pointer; line-height: 1.3; }
+.ecl-w-ev.is-today, .ecl-w-ev.is-next { background: rgba(var(--ecl-accent), .14); border-left-color: rgb(var(--ecl-accent)); }
+.ecl-w-ev b { display: block; font: 400 13px/1.25 var(--ecl-serif, Georgia, serif); color: rgba(var(--ecl-ink), .95); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ecl-w-ev i { font-style: normal; font-size: 11px; color: rgba(var(--ecl-ink), .66); white-space: nowrap; }
+.ecl-f-wkcal .ecl-w-ev i { display: block; overflow: hidden; text-overflow: ellipsis; }
+.ecl-w-ev.is-past { opacity: .5; }
+.ecl-w-ev i.ecl-w-dur { display: block; color: rgba(var(--ecl-ink), .56); }
+.ecl-w-ev.is-next { box-shadow: inset 0 0 0 1px rgba(var(--ecl-accent), .55); }
+.ecl-w-now { position: absolute; left: 0; right: 0; height: 1px; background: rgb(var(--ecl-accent)); z-index: 4; pointer-events: none; }
+.ecl-w-now::before { content: ""; position: absolute; left: -3px; top: -3px; width: 7px; height: 7px; border-radius: 50%; background: rgb(var(--ecl-accent)); }
+.ecl-w-empty { grid-column: 1 / -1; position: relative; display: grid; grid-template-columns: 44px repeat(7, minmax(0, 1fr)); height: 120px; }
+.ecl-w-none { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-style: italic; font-size: 14px; color: rgba(var(--ecl-ink), .6); }
+
+/* ---- Per-type tops (B3): one region under the title, the same family for every type (hairline, serif, small caps), different art ---- */
+.ecl-f-top { margin: 22px 0 0; }
+.ecl-f-top.is-off, .ecl-f-top.is-none { display: none; }
+.ecl-f-top:not(.is-off) + .ecl-f-stats { margin-top: 18px; }
+.ecl-f-top .ecl-f-key { font-size: 11.5px; }
+/* Journal: seven phase moons, then the key and the actions. */
+.ecl-f-jm-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0 6px; border-top: 1px solid rgba(var(--ecl-ink), .14); padding-top: 14px; }
+.ecl-f-jm { display: flex; flex-direction: column; align-items: center; gap: 7px; text-decoration: none; cursor: pointer; min-width: 0; }
+.ecl-f-jm.is-idle { cursor: default; }
+.ecl-f-jm small { font-size: 9.5px; letter-spacing: .18em; color: rgba(var(--ecl-ink), .68); }
+.ecl-f-jm b { font-weight: 400; font-size: 18px; color: rgba(var(--ecl-ink), .86); }
+.ecl-f-jm i { width: 7px; height: 7px; border-radius: 50%; border: 1.2px solid rgba(var(--ecl-ink), .5); box-sizing: border-box; }
+.ecl-f-jm.has i { background: rgba(var(--ecl-ink), .95); border-color: rgba(var(--ecl-ink), .95); }
+.ecl-f-jm.is-future .ecl-f-bcv { opacity: .55; }
+.ecl-f-jm.is-future b { color: rgba(var(--ecl-ink), .6); }
+.ecl-f-jm.is-now small, .ecl-f-jm.is-now b { color: rgb(var(--ecl-accent)); }
+.ecl-f-jm:hover { text-decoration: none; }
+.ecl-f-jm.has:hover b { color: rgb(var(--ecl-ink)); }
+.ecl-f-jm-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 20px; margin-top: 12px; }
+.ecl-f-jm-foot .ecl-f-key { margin-top: 0; }
+.ecl-f-topacts { display: flex; gap: 18px; font-size: 13px; }
+/* Course: the moon, then the term as a line with each assessment hung off its own stem. */
+.ecl-f-ct { display: flex; align-items: center; gap: 22px; border-top: 1px solid rgba(var(--ecl-ink), .14); padding-top: 8px; }
+.ecl-f-ct-moon { flex: none; }
+.ecl-f-tl { flex: 1; min-width: 0; padding: 0 70px 0 0; }
+.ecl-f-tl-plot { position: relative; height: 176px; }
+.ecl-f-tl-line { position: absolute; left: 0; right: 0; top: 78px; height: 1px; background: rgba(var(--ecl-ink), .24); }
+.ecl-f-tl-line i { position: absolute; left: 0; top: -.5px; height: 2px; background: rgba(var(--ecl-ink), .82); }
+.ecl-f-tl-tick { position: absolute; top: 74px; width: 1px; height: 9px; background: rgba(var(--ecl-ink), .3); }
+.ecl-f-tl-d { position: absolute; top: 74px; width: 8px; height: 8px; margin-left: -4px; background: rgba(var(--ecl-ink), .95); transform: rotate(45deg); }
+.ecl-f-tl-d.is-gold { background: rgb(var(--ecl-accent)); }
+.ecl-f-tl-now { position: absolute; top: 74px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; border: 1.3px solid rgb(var(--ecl-accent)); box-sizing: border-box; background: rgb(var(--ground, 8 7 6)); }
+.ecl-f-tl-l { position: absolute; width: 170px; display: flex; flex-direction: column; gap: 2px; padding-left: 9px; border-left: 1px solid rgba(var(--ecl-ink), .5); box-sizing: border-box; cursor: pointer; }
+.ecl-f-tl-l.is-up { bottom: 98px; justify-content: flex-start; }
+.ecl-f-tl-l.is-dn { top: 82px; justify-content: flex-end; }
+.ecl-f-tl-l.is-up.lv0 { height: 40px; } .ecl-f-tl-l.is-up.lv1 { height: 78px; }
+.ecl-f-tl-l.is-dn.lv0 { height: 40px; } .ecl-f-tl-l.is-dn.lv1 { height: 78px; }
+.ecl-f-tl-l.is-r { transform: translateX(-100%); margin-left: 1px; padding-left: 0; padding-right: 9px; border-left: 0; border-right: 1px solid rgba(var(--ecl-ink), .5); text-align: right; }
+.ecl-f-tl-l.is-gold { border-color: rgb(var(--ecl-accent)); }
+.ecl-f-tl-n { font-size: 14px; line-height: 1.2; color: rgba(var(--ecl-ink), .92); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecl-f-tl-l small { font-size: 11px; letter-spacing: .04em; color: rgba(var(--ecl-ink), .72); font-family: var(--font-interface, system-ui); white-space: nowrap; }
+.ecl-f-tl-l:hover .ecl-f-tl-n { color: rgb(var(--ecl-ink)); }
+.ecl-f-tl-ends { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; align-items: baseline; font-size: 9.5px; color: rgba(var(--ecl-ink), .6); }
+.ecl-f-tl-ends .ecl-caps { font-size: 9.5px; color: rgba(var(--ecl-ink), .6); }
+.ecl-f-tl-none { font-style: italic; font-size: 13px; color: rgba(var(--ecl-ink), .7); }
+/* Project: one body per project, lit by how recently it was edited, with its status written out. */
+.ecl-f-pt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 18px 14px; border-top: 1px solid rgba(var(--ecl-ink), .14); padding-top: 14px; }
+.ecl-f-pt { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; text-decoration: none; cursor: pointer; }
+.ecl-f-pt .ecl-f-bcv { margin-bottom: 4px; }
+.ecl-f-pt-n { max-width: 100%; font-size: 16px; line-height: 1.2; color: rgba(var(--ecl-ink), .95); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecl-f-pt-s { font-size: 9.5px; letter-spacing: .16em; color: rgba(var(--ecl-ink), .78); }
+.ecl-f-pt-s.is-unk { color: rgba(var(--ecl-ink), .6); font-style: italic; text-transform: none; letter-spacing: .04em; font-size: 11px; }
+.ecl-f-pt-e { font-size: 11px; color: rgba(var(--ecl-ink), .66); font-family: var(--font-interface, system-ui); }
+.ecl-f-pt.is-dead .ecl-f-pt-n { color: rgba(var(--ecl-ink), .66); }
+.ecl-f-pt:hover { text-decoration: none; }
+.ecl-f-pt:hover .ecl-f-pt-n { color: rgb(var(--ecl-ink)); }
+.ecl-f-pt-more { margin-top: 12px; font-style: italic; font-size: 13px; color: rgba(var(--ecl-ink), .68); }
+/* Plain folder: counts and the last thing touched on the left, thirty days of edits as a row of ticks on the right. */
+.ecl-f-plt { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px 44px; flex-wrap: wrap; border-top: 1px solid rgba(var(--ecl-ink), .14); padding-top: 14px; }
+.ecl-f-plt-t { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1 1 260px; }
+.ecl-f-plt-c { color: rgba(var(--ecl-ink), .78); letter-spacing: .18em; }
+.ecl-f-plt-l { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; }
+.ecl-f-plt-k { font-size: 9.5px; color: rgba(var(--ecl-ink), .62); }
+.ecl-f-plt-a { font-size: 20px; line-height: 1.25; color: rgba(var(--ecl-ink), .95); cursor: pointer; text-decoration: none; }
+.ecl-f-plt-a:hover { color: rgb(var(--ecl-accent)); text-decoration: none; }
+.ecl-f-plt-l small { font-size: 12px; color: rgba(var(--ecl-ink), .7); font-family: var(--font-interface, system-ui); }
+.ecl-f-plt-s { flex: 1 1 280px; max-width: 460px; min-width: 0; }
+.ecl-f-plt-b { display: flex; align-items: flex-end; gap: 3px; height: 26px; }
+.ecl-f-plt-b i { flex: 1; min-width: 0; background: rgba(var(--ecl-ink), .8); border-radius: 1px; }
+.ecl-f-plt-b i.is-0 { background: rgba(var(--ecl-ink), .2); }
+.ecl-f-plt-cap { display: flex; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: 10.5px; color: rgba(var(--ecl-ink), .62); font-family: var(--font-interface, system-ui); }
+.ecl-f-plt-n { color: rgba(var(--ecl-ink), .8); }
+.is-narrow .ecl-f-ct { gap: 14px; }
+.is-narrow .ecl-f-tl { padding-right: 56px; }
+.is-tiny .ecl-f-ct { flex-direction: column; align-items: flex-start; gap: 4px; }
+.is-tiny .ecl-f-tl { width: 100%; padding-right: 84px; }
+.is-tiny .ecl-f-tl-l { width: 128px; }
+.is-tiny .ecl-f-jm-row { gap: 0 2px; }
+.is-tiny .ecl-f-jm b { font-size: 15px; }
+.is-tiny .ecl-f-jm small { letter-spacing: .08em; font-size: 8.5px; }
+.is-tiny .ecl-f-pt-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Course top: an assessment due after the term end gets a dashed run past the term line, and the term end is named */
+.ecl-f-tl-line.is-after { right: 0; background: none; border-top: 1px dashed rgba(var(--ecl-ink), .32); height: 0; }
+.ecl-f-tl-tick.is-end { height: 15px; top: 71px; background: rgba(var(--ecl-ink), .55); }
+.ecl-f-tl-te { position: absolute; transform: translateX(-50%); white-space: nowrap; font-size: 9.5px; color: rgba(var(--ecl-ink), .6); }
+.ecl-f-tl-te.is-close { left: auto !important; right: 0; transform: none; }
+
+/* Edu (a course collection): the same centred column as Work, a term band, the next fortnight, then a column per course. */
+.ecl-f-col.is-wide.is-edu { max-width: 1440px; padding-left: clamp(28px, 3.5vw, 72px); padding-right: clamp(28px, 3.5vw, 72px); }
+.is-tiny .ecl-f-col.is-wide.is-edu { padding-left: 20px; padding-right: 20px; }
+.ecl-f-eb { --eb-lab: 200px; --eb-gap: 28px; position: relative; margin: 8px 0 0; }
+.is-narrow .ecl-f-eb { --eb-lab: 128px; --eb-gap: 18px; }
+.is-narrow .ecl-f-eb-sub { display: none; }
+.is-narrow .ecl-f-eb-name { font-size: 15px; }
+.ecl-f-eb-ov { position: absolute; left: calc(var(--eb-lab) + var(--eb-gap)); right: 0; top: 0; bottom: 0; pointer-events: none; z-index: 0; }
+.ecl-f-eb-mline { position: absolute; top: 36px; bottom: 0; width: 1px; background: rgba(var(--ecl-ink), .07); }
+.ecl-f-eb-today { position: absolute; top: 15px; bottom: 0; width: 1px; background: rgb(var(--ecl-accent)); opacity: .9; }
+.ecl-f-eb-row { display: grid; grid-template-columns: var(--eb-lab) minmax(0, 1fr); column-gap: var(--eb-gap); position: relative; z-index: 1; }
+.ecl-f-eb-axis { height: 40px; }
+.ecl-f-eb-plot { position: relative; min-width: 0; }
+.ecl-f-eb-axis .ecl-f-eb-plot::after { content: ""; position: absolute; left: 0; right: 0; top: 36px; height: 1px; background: rgba(var(--ecl-ink), .16); }
+.ecl-f-eb-mo { position: absolute; top: 19px; padding-left: 6px; font-size: 10px; letter-spacing: .18em; color: rgba(var(--ecl-ink), .7); }
+.ecl-f-eb-mo.is-edge { padding-left: 0; }
+.ecl-f-eb-tl { position: absolute; top: 0; padding-left: 6px; font-size: 10px; letter-spacing: .16em; white-space: nowrap; color: rgb(var(--ecl-accent)); }
+.ecl-f-eb-tl.is-flip { transform: translateX(-100%); padding-left: 0; padding-right: 6px; }
+.ecl-f-eb-lane { min-height: 112px; }
+.ecl-f-eb-lab { min-width: 0; padding: 14px 0 6px; cursor: pointer; }
+.ecl-f-eb-lane .ecl-f-eb-lab:hover .ecl-f-cname { color: rgb(var(--ecl-ink)); }
+.ecl-f-eb-name { font-size: 17px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ecl-f-eb-sub { margin-top: 1px; }
+.ecl-f-eb-dots { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+.ecl-f-eb-dots i { width: 6px; height: 6px; border-radius: 50%; border: 1.2px solid rgba(var(--ecl-ink), .62); box-sizing: border-box; }
+.ecl-f-eb-dots i.is-lit { background: rgba(var(--ecl-ink), .92); border-color: rgba(var(--ecl-ink), .92); }
+.ecl-f-eb-ln, .ecl-f-eb-dash { position: absolute; top: 50%; height: 0; border-top: 1px solid rgba(var(--ecl-ink), .3); }
+.ecl-f-eb-ln.is-lit { border-top-color: rgba(var(--ecl-ink), .92); }
+.ecl-f-eb-dash { border-top-style: dashed; border-top-color: rgba(var(--ecl-ink), .5); }
+.ecl-f-eb-dash.is-inf { border-top-color: rgba(var(--ecl-ink), .3); }
+.ecl-f-eb-tick { position: absolute; top: calc(50% - 2.5px); width: 1px; height: 5px; background: rgba(var(--ecl-ink), .3); }
+.ecl-f-eb-tick.is-lit { top: calc(50% - 5px); height: 11px; background: rgba(var(--ecl-ink), .95); }
+.ecl-f-eb-end { position: absolute; top: calc(50% - 6px); width: 1px; height: 13px; background: rgba(var(--ecl-ink), .7); }
+.ecl-f-eb-dia, .ecl-f-eb-ring { position: absolute; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; box-sizing: border-box; cursor: pointer; }
+.ecl-f-eb-dia { transform: rotate(45deg); background: rgb(var(--ecl-ink)); }
+.ecl-f-eb-dia.is-gold { background: rgb(var(--ecl-accent)); }
+.ecl-f-eb-ring { border-radius: 50%; border: 1.3px solid rgba(var(--ecl-ink), .9); }
+.ecl-f-eb-labs { position: absolute; inset: 0; pointer-events: none; }
+.ecl-f-eb-l { position: absolute; width: max-content; max-width: 200px; font-family: var(--font-interface, system-ui); font-size: 11.5px; line-height: 1.32; color: rgba(var(--ecl-ink), .84); white-space: nowrap; }
+.ecl-f-eb-l.is-up { bottom: calc(50% + 11px); }
+.ecl-f-eb-l.is-dn { top: calc(50% + 11px); }
+.ecl-f-eb-l.is-flip { text-align: right; }
+.ecl-f-eb-l1 { font-size: 12px; color: rgba(var(--ecl-ink), .94); max-width: 150px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ecl-f-eb-l2 b { font-weight: 600; font-size: 12.5px; color: rgba(var(--ecl-ink), .96); margin-right: 1px; }
+.ecl-f-eb-none { position: absolute; left: 0; top: calc(50% + 12px); font-size: 12px; font-style: italic; color: rgba(var(--ecl-ink), .66); }
+.ecl-f-eb-more { margin: 6px 0 0 calc(var(--eb-lab) + var(--eb-gap)); font-size: 12px; font-style: italic; color: rgba(var(--ecl-ink), .7); }
+.is-tiny .ecl-f-eb, .is-tiny .is-edu .ecl-f-bkey { display: none; }
+.ecl-f-col.is-edu .ecl-f-bkey { margin: 12px 0 8px; }
+.ecl-f-key .ecl-f-kd { display: inline-block; width: 6px; height: 6px; border-radius: 0; transform: rotate(45deg); background: rgba(var(--ecl-ink), .92); border-color: rgba(var(--ecl-ink), .92); margin: 0 7px 0 0; }
+.ecl-f-key .ecl-f-kr { margin: 0 7px 0 14px; }
+.ecl-f-key .ecl-f-kt { display: inline-block; width: 1px; height: 9px; border-radius: 0; border: 0; background: rgba(var(--ecl-ink), .5); margin: 0 7px 0 14px; }
+.ecl-f-key .ecl-f-kt.is-lit { height: 11px; background: rgba(var(--ecl-ink), .95); }
+.ecl-f-key .ecl-f-key-x { margin-left: 14px; }
+.ecl-f-nf { margin: 22px 0 30px; }
+.ecl-f-nf.is-bare { margin: 10px 0 18px; }
+.ecl-f-nf.is-bare .ecl-f-nf-admin { margin-top: 0; }
+.ecl-f-nf-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0 32px; }
+.ecl-f-nf-i { display: flex; flex-direction: column; gap: 2px; padding: 10px 0 11px; border-top: 1px solid rgba(var(--ecl-ink), .12); cursor: pointer; min-width: 0; }
+.ecl-f-nf-d { font-size: 10px; letter-spacing: .16em; color: rgba(var(--ecl-ink), .72); }
+.ecl-f-nf-t { font-size: 16.5px; line-height: 1.25; color: rgba(var(--ecl-ink), .95); overflow-wrap: anywhere; }
+.ecl-f-nf-i small { font-size: 12px; color: rgba(var(--ecl-ink), .84); font-family: var(--font-interface, system-ui); }
+.ecl-f-nf-i.is-gold .ecl-f-nf-d, .ecl-f-nf-i.is-gold small { color: rgb(var(--ecl-accent)); }
+.ecl-f-nf-i:hover .ecl-f-nf-t { color: rgb(var(--ecl-ink)); }
+.ecl-f-nf-admin { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 22px; margin-top: 14px; padding-top: 10px; border-top: 1px solid rgba(var(--ecl-ink), .08); font-size: 13px; font-family: var(--font-interface, system-ui); }
+.ecl-f-nf-ak { font-size: 10px; letter-spacing: .16em; color: rgba(var(--ecl-ink), .7); }
+.ecl-f-nf-al { color: rgba(var(--ecl-ink), .9); cursor: pointer; text-decoration: none; }
+.ecl-f-nf-al:hover { color: rgb(var(--ecl-ink)); text-decoration: none; }
+.ecl-f-etop { padding-bottom: 14px; margin-bottom: 18px; border-bottom: 1px solid rgba(var(--ecl-ink), .1); cursor: pointer; }
+.ecl-f-etop .ecl-f-cname { min-height: 2.4em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ecl-f-etop:hover .ecl-f-cname { color: rgb(var(--ecl-ink)); }
+.is-narrow .ecl-f-etop .ecl-f-cname { min-height: 0; }
+.ecl-f-eline { position: relative; height: 9px; margin-top: 12px; }
+.ecl-f-eline::before { content: ""; position: absolute; left: 0; right: 0; top: 4px; height: 1px; background: rgba(var(--ecl-ink), .24); }
+.ecl-f-eline-lit { position: absolute; left: 0; top: 4px; height: 1px; background: rgba(var(--ecl-ink), .92); }
+.ecl-f-eline-dot { position: absolute; top: 0; width: 9px; height: 9px; margin-left: -4.5px; border-radius: 50%; background: rgba(var(--ecl-ink), .95); }
+.ecl-f-eline-t { display: flex; justify-content: space-between; gap: 12px; margin-top: 7px; font-size: 12px; color: rgba(var(--ecl-ink), .84); font-family: var(--font-interface, system-ui); }
+.ecl-f-call { display: inline-block; margin-top: 2px; }
+.ecl-f-col.is-edu .ecl-f-cols:not(.is-leaf) { margin-bottom: 30px; }
+
+/* Static states that used to be set one by one from main.js (S1). */
+.ecl-off.ecl-off.ecl-off { display: none !important; } /* hidden: beats the display each element normally has */
+.ecl-canvas.is-grab { cursor: grab; }
+.ecl-canvas.is-pointer { cursor: pointer; }
+.ecl-canvas.is-grabbing { cursor: grabbing; }
+.ecl-corner.is-on { display: block; }
+.ecl-probe { position: absolute; visibility: hidden; height: var(--ecl-nav-clear, 0px); } /* measures the floating toolbar */
+.ecl-dial.is-lifted { transition: opacity 200ms ease, background 150ms ease; }
+.ecl-dial.is-lifted.is-eased { transition: transform 320ms cubic-bezier(.2, .8, .2, 1), opacity 200ms ease, background 150ms ease; }
+/* The Today text column. Left, width (and top on a phone) come from the layout; the rest is fixed per layout. */
+.ecl-t-col.is-stack { left: 24px; right: 24px; width: auto; bottom: var(--ecl-nav-clear, var(--ecl-status-h, 26px)); }
+.ecl-t-col.is-side { right: auto; top: 20px; bottom: var(--ecl-status-h, 26px); }
+.ecl-t-col.is-flush { left: 40px; }
+.ecl-t-col.is-measure { left: 0; width: max-content; max-width: 560px; }
+.ecl-t-wcol { top: 30px; }
+
+/* ---- Before it's due (time you have): one row per deadline, a pip per free hour ----------- */
+.ecl-ti .ecl-t-lbl { flex-wrap: wrap; }
+.ecl-ti-key { display: flex; flex: 1 0 100%; flex-wrap: wrap; margin-top: 8px; gap: 6px 16px; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: rgba(var(--ecl-ink), .5); }
+.ecl-ti-key span { display: inline-flex; align-items: center; gap: 7px; }
+.ecl-ti-key .ecl-ti-p { height: 11px; }
+.ecl-ti-rows { margin-top: 10px; }
+.ecl-ti-row { display: grid; grid-template-columns: minmax(0, 1fr); row-gap: 8px; padding: 16px 0 18px; border-top: 1px solid var(--ecl-hair, rgba(var(--ecl-ink), .11)); cursor: pointer; }
+.ecl-ti-day { color: rgba(var(--ecl-ink), .72); }
+.ecl-ti-row.is-short .ecl-ti-day { color: rgb(var(--ecl-accent)); }
+.ecl-ti-at { margin-left: 4px; }
+.ecl-ti-at::before { content: "· "; }
+.ecl-ti-title { font-size: 22px; line-height: 1.2; color: rgb(var(--ecl-ink)); overflow-wrap: anywhere; }
+.ecl-ti-row:hover .ecl-ti-title { color: rgb(var(--ecl-accent)); }
+.ecl-ti-sub { margin-top: 5px; color: rgba(var(--ecl-ink), .5); }
+.ecl-ti-stat { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-top: 10px; }
+.ecl-ti-free { font-size: 26px; line-height: 1; color: rgb(var(--ecl-ink)); }
+.ecl-ti-row.is-short .ecl-ti-free { color: rgb(var(--ecl-accent)); }
+.ecl-ti-need { font-size: 15px; margin-left: 6px; color: rgba(var(--ecl-ink), .7); }
+.ecl-ti-src { font-size: 9.5px; letter-spacing: .12em; }
+.ecl-ti-pips { display: flex; flex-wrap: wrap; gap: 8px 10px; }
+.ecl-ti-pr { display: flex; gap: 1px; }
+.ecl-ti-p { display: block; width: 4px; height: 16px; box-sizing: border-box; border-left: 1px solid rgba(var(--ecl-ink), .22); }
+.ecl-ti-p.is-lit { background: rgb(var(--ecl-accent)); border-color: rgb(var(--ecl-accent)); }
+.ecl-ti-p.is-rs { background: repeating-linear-gradient(135deg, rgba(var(--ecl-ink), .26) 0 1px, transparent 1px 4px); }
+.ecl-ti-p.is-short { border: 1px dashed var(--ecl-warn, rgb(var(--ecl-accent))); }
+.ecl-ti-dl { margin-top: 5px; font-size: 9px; letter-spacing: .12em; }
+.ecl-ti-grp.is-short .ecl-ti-dl { color: var(--ecl-warn, rgb(var(--ecl-accent))); }
+.ecl-ti-why { font-style: italic; font-size: 13.5px; line-height: 1.5; color: rgba(var(--ecl-ink), .62); }
+.ecl-ti-row.is-short .ecl-ti-why { color: rgb(var(--ecl-accent)); }
+.ecl-ti-more, .ecl-ti-plainhead { padding: 12px 0 0; color: rgba(var(--ecl-ink), .64); }
+.ecl-ti-plain { border-top: 1px solid var(--ecl-hair, rgba(var(--ecl-ink), .11)); padding-bottom: 6px; }
+.ecl-ti-plainhead { cursor: pointer; padding-bottom: 10px; }
+.ecl-ti-plainhead::after { content: " +"; }
+.ecl-ti-plain.is-open .ecl-ti-plainhead::after { content: " -"; }
+.ecl-ti-plainbody { display: none; }
+.ecl-ti-plain.is-open .ecl-ti-plainbody { display: block; }
+.ecl-ti-prow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 5px 0; font-size: 14px; color: rgba(var(--ecl-ink), .9); cursor: pointer; }
+.ecl-ti-prow:hover .ecl-ti-ptitle { color: rgb(var(--ecl-accent)); }
+.ecl-ti-pfree { font-style: italic; font-size: 13px; color: rgba(var(--ecl-ink), .5); }
+/* wide: date and time, then title and numbers, then the pips, in one row; the reason sits under the title */
+.ecl-t-time { padding: 34px var(--ecl-wpad, 56px) 0; margin: 0 auto; box-sizing: border-box; }
+.ecl-t-time .ecl-ti-key { flex: 0 1 auto; margin: 0 0 0 auto; gap: 6px 18px; }
+.ecl-t-time .ecl-ti-row { grid-template-columns: 130px minmax(240px, 340px) minmax(0, 1fr); column-gap: 20px; align-items: start; padding: 20px 0 22px; }
+.ecl-t-time .ecl-ti-at { display: block; margin: 8px 0 0; font-size: 20px; letter-spacing: 0; text-transform: none; color: rgb(var(--ecl-ink)); }
+.ecl-t-time .ecl-ti-at::before { content: none; }
+.ecl-t-time .ecl-ti-title { font-size: 28px; }
+.ecl-t-time .ecl-ti-free { font-size: 30px; }
+.ecl-t-time .ecl-ti-need { font-size: 17px; }
+.ecl-t-time .ecl-ti-pips { padding-top: 12px; }
+.ecl-t-time .ecl-ti-p { width: 8px; height: 22px; }
+.ecl-t-time .ecl-ti-pr { gap: 2px; }
+.ecl-t-time .ecl-ti-why { grid-column: 2 / span 2; font-size: 15px; }
+.ecl-t-time .ecl-ti-plainbody, .ecl-t-time .ecl-ti-more { margin-left: 150px; }
+.ecl-t-time .ecl-ti-plainhead { padding-left: 0; }
+.ecl-t-time .ecl-ti-prow { font-size: 16px; }
+.ecl-t-time .ecl-ti-ptitle { min-width: 280px; }
+@media (max-width: 1100px) {
+  .ecl-t-time .ecl-ti-row { grid-template-columns: 110px minmax(0, 1fr); }
+  .ecl-t-time .ecl-ti-pips { grid-column: 2; padding-top: 0; }
+  .ecl-t-time .ecl-ti-why { grid-column: 2; }
+  .ecl-t-time .ecl-ti-key { flex: 1 0 100%; margin: 8px 0 0; }
+  .ecl-t-time .ecl-ti-plainbody, .ecl-t-time .ecl-ti-more { margin-left: 0; }
+}
+/* keyboard: every row and expander is a tab stop; the focus ring is the accent hairline, no box */
+.ecl-ti-row:focus-visible, .ecl-ti-prow:focus-visible, .ecl-ti-more:focus-visible, .ecl-ti-plainhead:focus-visible, .ecl-ti-basis a:focus-visible, .ecl-ti-x:focus-visible { outline: 1px solid rgba(var(--ecl-accent), .7); outline-offset: 4px; }
+.ecl-ti-row:focus-visible .ecl-ti-title { color: rgb(var(--ecl-accent)); }
+.ecl-ti-more { cursor: pointer; }
+.ecl-ti-more::after { content: " +"; }
+.ecl-ti-more.is-open::after { content: " -"; }
+.ecl-ti-rest { display: none; }
+.ecl-ti-rest.is-open { display: block; }
+/* the footnote: what "free" was counted from, and one line when there is nothing to show yet */
+.ecl-ti-basis { margin-top: 16px; font-size: 9.5px; letter-spacing: .12em; line-height: 1.7; color: rgba(var(--ecl-ink), .46); }
+.ecl-ti-basis a { color: rgba(var(--ecl-ink), .7); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.ecl-ti-basis a:hover { color: rgb(var(--ecl-accent)); }
+.ecl-ti-empty { display: flex; align-items: baseline; gap: 14px; margin-top: 10px; padding: 14px 0 6px; border-top: 1px solid var(--ecl-hair, rgba(var(--ecl-ink), .11)); font-style: italic; font-size: 14px; line-height: 1.5; color: rgba(var(--ecl-ink), .62); }
+.ecl-ti-empty code { font-family: var(--font-monospace, monospace); font-style: normal; font-size: .9em; color: rgba(var(--ecl-ink), .88); }
+.ecl-ti .ecl-ti-x { flex: none; margin-left: auto; width: auto; height: auto; min-width: 0; padding: 0 4px; background: transparent; border: 0; border-radius: 0; box-shadow: none; font-size: 18px; line-height: 1; color: rgba(var(--ecl-ink), .5); cursor: pointer; }
+.ecl-ti-x:hover { color: rgb(var(--ecl-accent)); }
+.ecl-t-time .ecl-ti-basis, .ecl-t-time .ecl-ti-empty { margin-left: 0; }

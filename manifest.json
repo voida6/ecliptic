@@ -1,0 +1,9 @@
+{
+  "id": "ecliptic",
+  "name": "Ecliptic",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "An orbital start screen: your top-level folders orbit a planet, with a Today page that needs no setup.",
+  "author": "voida6",
+  "isDesktopOnly": false
+}

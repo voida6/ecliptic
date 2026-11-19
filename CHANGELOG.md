@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- Ticking a task on Today keeps your place instead of jumping back to the top (phone and desktop).
+
 ## 0.1.0
 
 First release.

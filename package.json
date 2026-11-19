@@ -1,6 +1,6 @@
 {
   "name": "ecliptic",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Ecliptic for Obsidian. main.js and styles.css are written by hand, so there is no bundling step.",
   "license": "MIT",

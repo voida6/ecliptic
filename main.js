@@ -4603,6 +4603,10 @@ function taskBox(view, plugin, el, t) {
 
 function renderToday(view, host, d, sliced) {
   if (host.clientWidth >= WIDE_MIN) { host.removeClass("is-wide"); return renderTodayWide(view, host, d, sliced); }
+  // A re-render of this same page (a task was ticked, a note changed) keeps the scroll position instead of jumping to the top.
+  const again = host.hasClass("is-today") && !host.hasClass("is-wide");
+  const prevCol = again ? host.querySelector(".ecl-t-col") : null;
+  const prevColTop = prevCol ? prevCol.scrollTop : 0, prevHostTop = again ? host.scrollTop : 0;
   host.removeClass("is-wide");
   if (view.todayTimer) { window.clearInterval(view.todayTimer); view.todayTimer = null; }
   const plugin = view.plugin, pal = plugin.palette(), world = WORLDS.find((x) => x.id === plugin.settings.world) || WORLDS[0];
@@ -4893,6 +4897,8 @@ function renderToday(view, host, d, sliced) {
     host._moonCanvas = canvas; host._marks = marksEl;
   };
   layout(!!sliced);
+  if (prevColTop) col.scrollTop = prevColTop;
+  if (prevHostTop) host.scrollTop = prevHostTop;
   if (typeof ResizeObserver !== "undefined") {
     let t = 0;
     view.todayRO = new ResizeObserver(() => { window.clearTimeout(t); t = window.setTimeout(() => layout(false), 60); });
@@ -5147,6 +5153,8 @@ function renderTodayWide(view, host, d, sliced) {
   if (view.todayRO) { view.todayRO.disconnect(); view.todayRO = null; }
   if (view.todayTimer) { window.clearInterval(view.todayTimer); view.todayTimer = null; }
   if (view.artJob) { view.artJob.cancel(); view.artJob = null; }
+  // A re-render of Today itself (a task was ticked) keeps the scroll position; a fresh open starts at the top.
+  const prevTop = host.hasClass("is-today") ? host.scrollTop : 0;
   host.empty();
   host.removeClass("is-home", "is-compact", "is-mirror", "is-beside", "is-phone", "is-folder", "is-narrow", "is-tiny");
   host._closeList = null;
@@ -5337,6 +5345,7 @@ function renderTodayWide(view, host, d, sliced) {
     }
   };
   layout(!!sliced);
+  if (prevTop) host.scrollTop = prevTop;
   if (typeof ResizeObserver !== "undefined") {
     let t = 0;
     view.todayRO = new ResizeObserver(() => { window.clearTimeout(t); t = window.setTimeout(() => layout(false), 60); });

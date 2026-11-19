@@ -2,9 +2,9 @@
 
 Ecliptic is a start screen for Obsidian. Your top-level folders orbit a planet. Click the planet for Today. Click a folder for a page built for what is inside it.
 
-It reads your notes as they are. There is nothing to set up, and it never edits a note except to tick off a task or create today's note when you ask.
+It reads your notes as they are. There is nothing to set up, and it only changes a note when you click something that says so, such as ticking off a task or creating today's note. [Privacy](#privacy) lists every case.
 
-![Home](docs/home.png)
+![Home, then Today, then back](docs/home-today.gif)
 
 ## Install
 

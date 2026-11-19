@@ -560,6 +560,10 @@ a.ecl-t-setplace:hover { color: rgb(var(--ecl-ink)); border-bottom-color: rgba(v
 /* Hover brightens to full ink; the signal colour is reserved for NOW and the one "Open today's note" link. */
 .ecl-t-task:hover .ecl-t-what, .ecl-t-recent:hover .ecl-t-what { color: rgb(var(--ecl-ink)); }
 .ecl-t-task:hover i { background: rgba(var(--ecl-ink), .25); }
+/* The narrow and phone Today's tick box: the dot stays small, its tap area is 40 px (the row text beside it still opens the note). */
+.ecl-landing:not(.is-wide) .ecl-t-task i[role="checkbox"] { position: relative; cursor: pointer; }
+.ecl-landing:not(.is-wide) .ecl-t-task i[role="checkbox"]::after { content: ""; position: absolute; top: 50%; left: -15px; width: 40px; height: 40px; margin-top: -20px; }
+.is-phone .ecl-t-task:not(.is-more):not(.is-fold):not(.is-sched) { min-height: 40px; gap: 16px; padding-left: 15px; } /* the column clips at its left edge: the dot sits 15px in so its 40px tap area is whole */
 /* Overdue: the title stays in normal ink; only the small date carries the world's warn colour, dimmed, so the signal colour stays the one accent. */
 .ecl-t-task.is-overdue small { color: var(--ecl-warn, rgba(var(--ecl-ink), .9)); font-weight: 400; letter-spacing: .02em; } /* the world's warning colour at normal weight, not bold bright ink (ON5 V2) */
 .ecl-t-task.is-overdue .ecl-t-what { color: rgba(var(--ecl-ink), 1); }

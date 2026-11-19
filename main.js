@@ -4583,6 +4583,24 @@ function* phaseMoonGen(ctx, o) {
   }
 }
 
+// The tick box of a task row, shared by the wide and the narrow Today: a checkbox that writes [x] (and the done date) into the note;
+// a tap on the row itself still opens the note.
+function taskBox(view, plugin, el, t) {
+  const box = el.createEl("i", { attr: { role: "checkbox", "aria-label": "Mark done", "aria-checked": String(!!t.done), tabindex: "0" } });
+  if (t.done || t.line == null) return box;
+  const tick = async (ev) => {
+    ev.stopPropagation(); ev.preventDefault();
+    if (el.hasClass("is-done")) return;
+    el.addClass("is-done"); box.setAttr("aria-checked", "true");
+    const ok = await plugin.tickTask(t.path, t.line, t.title);
+    if (ok === "open") { el.removeClass("is-done"); box.setAttr("aria-checked", "false"); new obsidian.Notice("This task repeats. Tick it in the note, where the Tasks plugin can add the next one."); view.openNote(t.path, t.line); }
+    else if (!ok) { el.removeClass("is-done"); box.setAttr("aria-checked", "false"); new obsidian.Notice("That task has moved in its note. Open the note to tick it."); }
+  };
+  box.addEventListener("click", tick);
+  box.addEventListener("keydown", (ev) => { if (ev.key === " " || ev.key === "Enter") tick(ev); });
+  return box;
+}
+
 function renderToday(view, host, d, sliced) {
   if (host.clientWidth >= WIDE_MIN) { host.removeClass("is-wide"); return renderTodayWide(view, host, d, sliced); }
   host.removeClass("is-wide");
@@ -4650,7 +4668,7 @@ function renderToday(view, host, d, sliced) {
     const rows = tsec.createDiv("ecl-t-rows");
     const row = (t) => {
       const el = rows.createDiv({ cls: "ecl-t-task" + (t.overdue ? " is-overdue" : "") + (t.done ? " is-done" : "") });
-      el.createEl("i");
+      taskBox(view, plugin, el, t);
       el.createSpan({ cls: "ecl-t-what", text: t.title });
       const meta = [t.due, t.folder, t.overdue ? "overdue" : ""].filter(Boolean).join(" · ");
       if (meta) el.createEl("small", { text: meta });
@@ -5178,19 +5196,7 @@ function renderTodayWide(view, host, d, sliced) {
     const rows = tsec.createDiv("ecl-t-rows");
     const row = (t) => {
       const el = rows.createDiv({ cls: "ecl-t-task" + (t.overdue ? " is-overdue" : "") + (t.done ? " is-done" : "") });
-      const box = el.createEl("i", { attr: { role: "checkbox", "aria-label": "Mark done", "aria-checked": String(!!t.done), tabindex: "0" } });
-      if (!t.done && t.line != null) {
-        const tick = async (ev) => {
-          ev.stopPropagation(); ev.preventDefault();
-          if (el.hasClass("is-done")) return;
-          el.addClass("is-done"); box.setAttr("aria-checked", "true");
-          const ok = await plugin.tickTask(t.path, t.line, t.title);
-          if (ok === "open") { el.removeClass("is-done"); box.setAttr("aria-checked", "false"); new obsidian.Notice("This task repeats. Tick it in the note, where the Tasks plugin can add the next one."); view.openNote(t.path, t.line); }
-          else if (!ok) { el.removeClass("is-done"); box.setAttr("aria-checked", "false"); new obsidian.Notice("That task has moved in its note. Open the note to tick it."); }
-        };
-        box.addEventListener("click", tick);
-        box.addEventListener("keydown", (ev) => { if (ev.key === " " || ev.key === "Enter") tick(ev); });
-      }
+      taskBox(view, plugin, el, t);
       el.createSpan({ cls: "ecl-t-what", text: t.title });
       const meta = [t.due, t.folder, t.overdue ? "overdue" : ""].filter(Boolean).join(" · ");
       if (meta) el.createEl("small", { text: meta });

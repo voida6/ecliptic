@@ -1035,8 +1035,10 @@ body.ecl-view-front:not(.ecl-themed) .status-bar { background: transparent; bord
 .ecl-dial-chip {
   flex: 0 0 68px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0; height: 58px; cursor: pointer;
-  color: rgba(var(--ecl-ink), .66); opacity: .78; transition: opacity 220ms ease, color 220ms ease;
+  opacity: .78; transition: opacity 220ms ease, color 220ms ease;
 }
+/* Its own ink, at a specificity that beats Obsidian's `button:not(.clickable-icon) { color: var(--text-color) }`: in the app's light theme that is black, and the moon names went black on the dark pane. */
+.ecl-view .ecl-dial-chip { color: rgba(var(--ecl-ink), .66); }
 .ecl-dial-chip.is-on { opacity: 1; color: rgb(var(--ecl-accent)); }
 .ecl-dial-chip { position: relative; }
 .ecl-dial-strip > .ecl-dial-chip:first-child { position: sticky; } /* (stays sticky: the relative above must not win) */
@@ -1046,6 +1048,9 @@ body.ecl-view-front:not(.ecl-themed) .status-bar { background: transparent; bord
 .ecl-dial-chip.is-cut .ecl-dial-chip-name { opacity: 0; }
 .ecl-dial-chip-art { transition: transform 200ms ease; }
 .ecl-dial-chip.is-cut-r .ecl-dial-chip-art { transform: translateX(-9px); } /* the moon of a chip cut at the right edge leans in: a disc sliver (no text) says there are more folders */
+/* The "+N More" chip at the end of the row: the same pitch as a moon, with the count where the moon would be and no sprite. */
+.ecl-dial-chip-more { opacity: .6; }
+.ecl-dial-more-n { font-family: "Iowan Old Style", "Source Serif 4", "Source Serif Pro", "Palatino Linotype", Georgia, serif; font-style: italic; font-size: 16px; letter-spacing: .02em; }
 .ecl-dial-chip-name { transition: opacity 160ms ease; text-transform: uppercase; letter-spacing: .12em; font-size: 9px; white-space: nowrap; max-width: 66px; overflow: hidden; text-overflow: ellipsis; }
 
 /* Phone: while a page flight runs, the card and the row of moons step aside (they come back when it ends). */
@@ -1250,6 +1255,12 @@ body.is-phone { --ecl-nav-clear: calc(var(--navbar-height, 52px) + max(var(--saf
 .ecl-themeprompt .ecl-themeprompt-btn.ecl-themeprompt-btn { flex: none; margin: 0; padding: 4px 10px; min-height: 28px; background: none !important; border: 0 !important; border-bottom: 1px solid rgba(var(--ecl-ink, 235,235,235), .3) !important; border-radius: 0 !important; box-shadow: none !important; font: inherit; font-style: normal; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: rgba(var(--ecl-ink, 235,235,235), .84); cursor: pointer; }
 .ecl-themeprompt .ecl-themeprompt-btn.ecl-themeprompt-btn:hover { color: rgb(var(--ecl-ink, 235,235,235)); border-bottom-color: rgba(var(--ecl-accent, 200,170,100), .8) !important; }
 .is-phone .ecl-themeprompt { flex-wrap: wrap; }
+/* On a page (Today, a folder) the question gets its own strip and the page gives up that much room, so it never sits over content:
+   under the page on desktop, above it on the phone. On Home it keeps the spot the scene already leaves clear. */
+.ecl-view.has-footnote.is-landing .ecl-landing { bottom: 52px; }
+.ecl-view.has-footnote.is-landing .ecl-lightnote { bottom: 8px; box-shadow: none; max-width: min(700px, calc(100% - 64px)); }
+.is-phone .ecl-view.has-footnote.is-landing .ecl-landing, .ecl-view.is-phone.has-footnote.is-landing .ecl-landing { bottom: 0; top: 52px; }
+.is-phone .ecl-view.has-footnote.is-landing .ecl-lightnote, .ecl-view.is-phone.has-footnote.is-landing .ecl-lightnote { top: 4px; bottom: auto; max-width: 680px; }
 .ecl-lightnote .ecl-lightnote-x.ecl-lightnote-x:hover,.ecl-lightnote .ecl-lightnote-x.ecl-lightnote-x:focus-visible { color: rgb(var(--ecl-ink, 235,235,235)); }
 
 /* ON5 U7: phone secondary text one ink step up (the dial's count and empty line, Today's phase line, its section labels and the "N done" fold). */
@@ -1566,7 +1577,7 @@ body.is-phone.ecl-themed .HyperMD-list-line-4 { padding-inline-start: 48px !impo
 .ecl-ti-pr { display: flex; gap: 1px; }
 .ecl-ti-p { display: block; width: 4px; height: 16px; box-sizing: border-box; border-left: 1px solid rgba(var(--ecl-ink), .22); }
 .ecl-ti-p.is-lit { background: rgb(var(--ecl-accent)); border-color: rgb(var(--ecl-accent)); }
-.ecl-ti-p.is-rs { background: repeating-linear-gradient(135deg, rgba(var(--ecl-ink), .26) 0 1px, transparent 1px 4px); }
+.ecl-ti-p.is-rs { background: repeating-linear-gradient(135deg, rgba(var(--ecl-ink), .5) 0 1px, transparent 1px 4px); }
 .ecl-ti-p.is-short { border: 1px dashed var(--ecl-warn, rgb(var(--ecl-accent))); }
 .ecl-ti-dl { margin-top: 5px; font-size: 9px; letter-spacing: .12em; }
 .ecl-ti-grp.is-short .ecl-ti-dl { color: var(--ecl-warn, rgb(var(--ecl-accent))); }

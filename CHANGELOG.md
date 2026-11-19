@@ -12,5 +12,7 @@ First release.
 - Tasks tick off in place, and today's note can be created from Today.
 - Worlds to travel between (Saturn, Earth and more), with an optional whole-app colour theme, asked once on first open.
 - Place for sunrise and sunset, with optional live weather. Both are off until you set them.
-- Works on desktop and on phones.
+- When there are more folders than fit around the planet, Home says "+N more folders"; tapping it opens the folder list in settings.
+- Due dates that cannot exist (such as 29 February in a year that has none) are ignored, and a due date in another year shows its year.
+- Works on desktop and on phones, in Obsidian's dark and light themes.
 - A demo vault is published with the release. Its date is pinned with the `debugDate` key in `data.json`.

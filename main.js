@@ -306,6 +306,9 @@ class EclipticScene {
     this.onWorld = opts.onWorld || (() => {});
     this.onOpenHome = opts.onOpenHome || (() => {});
     this.onNewFolder = opts.onNewFolder || (() => {});
+    this.onMore = opts.onMore || (() => {});
+    this.moreN = 0; // top-level folders the Home cap leaves out (a quiet "+N more" says so)
+    this.moreRect = null;
     this.sections = [];
     this.today = null; // { short, long, path }; drawn as the accent moon
     this.moonPhase = 2.2;
@@ -422,7 +425,12 @@ class EclipticScene {
     this.dialEl.addEventListener("pointercancel", this._up);
 
     this.applyCss();
-    this.ro = new ResizeObserver(() => { this.resize(); this.start(); }); // a tab coming back into view resizes the host from nothing
+    // A tab coming back into view resizes the host from nothing. The resize itself waits for the next frame: sizing the canvas inside the
+    // observer's own callback can change the host's size again, which logs "ResizeObserver loop completed with undelivered notifications".
+    this.ro = new ResizeObserver(() => {
+      if (this._roRaf) return;
+      this._roRaf = requestAnimationFrame(() => { this._roRaf = 0; this.resize(); this.start(); });
+    });
     this.ro.observe(host);
     this._wake = () => this.start(); // the window came back (shown or focused)
     document.addEventListener("visibilitychange", this._wake);
@@ -522,6 +530,7 @@ class EclipticScene {
     // Today is pinned (sticky) once the row is scrolled, so its offset is not its place in the row: it centres at scroll 0.
     this.rowEl.scrollTo({ left: i < 0 ? 0 : c.offsetLeft + c.offsetWidth / 2 - this.rowEl.clientWidth / 2, behavior: this.reduced ? "auto" : "smooth" });
   }
+  rowKeyNow() { return `${this.world.id}|${this.sections.map((s) => s.label).join(",")}|${this.fade < 1 ? 1 : 0}|${this.moreN | 0}`; }
   buildRow(ink) {
     const row = this.rowEl, items = [{ label: "Today", today: true }, ...this.sections];
     row.replaceChildren();
@@ -543,7 +552,15 @@ class EclipticScene {
       el(b, "span", "ecl-dial-chip-name", s.label);
       b.addEventListener("click", () => { this.selectDial(j - 1); });
     });
-    this.rowKey = `${this.world.id}|${this.sections.map((s) => s.label).join(",")}|${this.fade < 1 ? 1 : 0}`;
+    if (this.moreN > 0 && this.sections.length) {
+      // The folders the cap leaves out: one quiet chip at the end of the row, same pitch as the moons. A tap opens the folder list in settings.
+      const b = el(row, "button", "ecl-dial-chip ecl-dial-chip-more");
+      el(el(b, "span", "ecl-dial-chip-art"), "span", "ecl-dial-more-n", `+${this.moreN}`);
+      el(b, "span", "ecl-dial-chip-name", "More");
+      b.title = `${this.moreN} more ${this.moreN === 1 ? "folder" : "folders"}, in settings`;
+      b.addEventListener("click", () => this.onMore());
+    }
+    this.rowKey = this.rowKeyNow();
     this.rowSynced = false;
     // The row snaps to chip boundaries, so at rest a chip is either fully in view or fully under Today (never a clipped word beside it).
     // That only holds at the far end if the longest scroll is a whole number of chips, so a spacer pads the end of the row to make it so.
@@ -764,6 +781,7 @@ class EclipticScene {
 
   destroy() {
     cancelAnimationFrame(this.raf);
+    cancelAnimationFrame(this._roRaf);
     this.ro.disconnect();
     document.removeEventListener("visibilitychange", this._wake);
     window.removeEventListener("focus", this._wake);
@@ -1503,6 +1521,7 @@ class EclipticScene {
     const W = this.w + 40, KEEP = 12, avoid = [];
     if (this.lblDebug) for (const q of this.lblDebug) if (!q.hidden && q.a > 0.05) avoid.push(q.rect);
     if (this.footRect) avoid.push(this.footRect);
+    if (this.moreRect) avoid.push(this.moreRect);
     if (lk.stars > 0.01) for (const st of this.stars) {
       const x = ((st.x - this.mouse.x * 10 * st.depth - this.yaw * 60 * st.depth) % W + W) % W - 20;
       const y = st.y - this.mouse.y * 7 * st.depth + (this.tilt - TILT) * 50 * st.depth;
@@ -1679,6 +1698,18 @@ class EclipticScene {
       this.footRect = [16, this.h - 46, dw + nw + 12, 32];
       g.globalAlpha = 1;
     }
+    // Folders the cap leaves out: a small "+N more folders" at the right end of the footer line (a click opens the folder list in settings).
+    this.moreRect = null;
+    if (this.moreN > 0 && this.sections.length) {
+      if ("letterSpacing" in g) g.letterSpacing = "0.18em";
+      g.font = `${Math.max(11.5, fs + 1)}px ${SERIF}`;
+      g.textAlign = "right"; g.textBaseline = "alphabetic";
+      const t = upper(`+${this.moreN} more ${this.moreN === 1 ? "folder" : "folders"}`), tw = g.measureText(t).width;
+      g.globalAlpha = calm; g.fillStyle = this.overMore ? `rgb(${accent})` : `rgba(${ink},0.6)`;
+      g.fillText(t, this.w - 28, this.h - 26);
+      g.globalAlpha = 1; g.textAlign = "left";
+      this.moreRect = [this.w - 28 - tw - 12, this.h - 46, tw + 24, 32];
+    }
     if ("letterSpacing" in g) g.letterSpacing = "0px";
 
     // Keyboard focus: a hairline gold ring round the moon and its label.
@@ -1687,7 +1718,8 @@ class EclipticScene {
       if (h) {
         g.lineWidth = 1;
         g.strokeStyle = `rgba(${accent},0.95)`; g.beginPath(); g.arc(h.x, h.y, 17, 0, TAU); g.stroke();
-        g.strokeStyle = `rgba(${accent},0.5)`; g.strokeRect(Math.round(h.box[0]) + 0.5, Math.round(h.box[1]) + 0.5, Math.round(h.box[2]), Math.round(h.box[3]));
+        // The box round the label only while the label is there: the hover card replaces it, and a ring round nothing looks empty.
+        g.strokeStyle = `rgba(${accent},0.5)`; if (this.hover !== this.kbFocus) g.strokeRect(Math.round(h.box[0]) + 0.5, Math.round(h.box[1]) + 0.5, Math.round(h.box[2]), Math.round(h.box[3]));
       }
     }
     if (this.hover >= 0) this.placeCard();
@@ -1910,7 +1942,8 @@ class EclipticScene {
     const list = [];
     for (const m of items) {
       const sec = m.today ? null : this.sections[m.i];
-      const name = m.today ? "TODAY" : upper(sec.label);
+      // A very long folder name is cut to a moon-sized label (the page and the dial card keep the full name); left whole it spilled off the pane and shrank the orbit to fit.
+      const name = m.today ? "TODAY" : upper([...sec.label].length > 26 ? [...sec.label].slice(0, 25).join("").trimEnd() + "…" : sec.label);
       const sub = m.today ? `${this.today.short}  ·  ${moonPhase(this.today.age).name.toLowerCase()}` : sec.live || sec.meta || "";
       const wn = wid(name, nf, "0.22em"), ws = sub ? wid(sub, sf, "0.04em") : 0;
       list.push({ m, name, sub, wn, ws, late: !m.today && sec.liveKind === "overdue", bw: Math.max(wn, ws), bh: sub ? nfs + lgap + sfs : nfs + 6 });
@@ -2189,7 +2222,7 @@ class EclipticScene {
     const g = this.ctx, n = this.sections.length;
     if (this.dialToday && Math.abs(this.yaw - this.todayYaw) > 0.12) this.dialToday = false; // the dial was turned: back to a section
     const sel = this.dialSelIndex();
-    if (this.rowKey !== `${this.world.id}|${this.sections.map((s) => s.label).join(",")}|${this.fade < 1 ? 1 : 0}`) { this.buildRow(ink); this.rowSel = -9; }
+    if (this.rowKey !== this.rowKeyNow()) { this.buildRow(ink); this.rowSel = -9; }
     if (sel !== this.rowSel) {
       this.rowSel = sel;
       [...this.rowEl.children].forEach((c, j) => c.classList.toggle("is-on", j - 1 === sel));
@@ -2551,13 +2584,18 @@ class EclipticScene {
     this.setHover(i);
     this.overPlanet = i < 0 && this.onPlanet(x, y);
     this.overDate = i < 0 && !this.overPlanet && this.onDate(x, y);
-    setCursor(this.canvas, i >= 0 || this.overPlanet || this.overDate ? "pointer" : "grab");
+    this.overMore = i < 0 && !this.overPlanet && this.onMoreHint(x, y);
+    setCursor(this.canvas, i >= 0 || this.overPlanet || this.overDate || this.overMore ? "pointer" : "grab");
     if (this.reduced) this.draw();
   }
 
   onDate(x, y) {
     const r = this.footRect;
     return !!r && x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3];
+  }
+  onMoreHint(x, y) {
+    const r = this.moreRect;
+    return !this.dialMode && !!r && x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3];
   }
 
   // Press starts a possible drag; a press that does not move is a click.
@@ -2635,6 +2673,7 @@ class EclipticScene {
     const i = this.hitTest(x, y);
     if (i < 0 && this.onPlanet(x, y)) { this.pinned = -1; this.setHover(-1); this.onOpenHome(this.project(0, 0, 0)); return; }
     if (i < 0 && this.onDate(x, y)) { this.nextWorld(); return; }
+    if (i < 0 && this.onMoreHint(x, y)) { this.onMore(); return; }
     if (type === "touch") {
       if (i >= 0 && i === this.pinned) { this.open(i); return; }
       this.pinned = i;
@@ -3141,6 +3180,10 @@ function parseRuns(line, today) {
   else words = "finished " + fmtDay(end, { day: "numeric", month: "short" });
   return { p: clamp(since / Math.max(1, span), 0, 1), words, done: left < 0, week, weeks, left, start: isoDay(start), end: isoDay(end) };
 }
+// "Nov 20", or "Nov 20, 1999" when the date is not in today's (pinned) year: a typo or an old task never passes for this year.
+function dueDay(iso, today) {
+  return fmtDay(iso, today && iso.slice(0, 4) !== today.slice(0, 4) ? { day: "numeric", month: "short", year: "numeric" } : { day: "numeric", month: "short" });
+}
 // A due date said the short way, from today: "today", "tomorrow", "Thu 20", "20 Nov", "3 days late".
 function dueWords(iso, today) {
   const n = dayDiff(iso, today);
@@ -3148,12 +3191,12 @@ function dueWords(iso, today) {
   if (n === 0) return "today";
   if (n === 1) return "tomorrow";
   if (n < 7) return fmtDay(iso, { weekday: "short" }) + " " + dayDate(iso).getDate();
-  return fmtDay(iso, { day: "numeric", month: "short" });
+  return dueDay(iso, today);
 }
 // "due Thu 20", or for a date already past "due 4 Oct" (and "· 3 days late" when it is overdue): the date is never dropped.
 function dueLine(iso, today, overdue) {
   if (dayDiff(iso, today) >= 0) return "due " + dueWords(iso, today);
-  return "due " + fmtDay(iso, { day: "numeric", month: "short" }) + (overdue ? " · " + dueWords(iso, today) : "");
+  return "due " + dueDay(iso, today) + (overdue ? " · " + dueWords(iso, today) : "");
 }
 function dueIn(iso, today) {
   const n = dayDiff(iso, today);
@@ -4871,7 +4914,7 @@ function makeTimeSection(view, parent, t, todayIso) {
     return sec;
   }
   const key = h.createDiv("ecl-ti-key");
-  for (const [cls, txt] of [["is-lit", "free hour you need"], ["is-sp", "spare"], ["is-rs", "an earlier deadline's"]]) { const k = key.createSpan(); k.createEl("i", { cls: "ecl-ti-p " + cls }); k.appendText(txt); }
+  for (const [cls, txt] of [["is-lit", "free hour you need"], ["is-sp", "spare"], ["is-rs", "taken by an earlier deadline"]]) { const k = key.createSpan(); k.createEl("i", { cls: "ecl-ti-p " + cls }); k.appendText(txt); }
   const hrs = (n) => (Math.round(n * 10) / 10) + " h";
   const at = (m) => { const h12 = Math.floor(m / 60) % 12 || 12, mm = m % 60; return `${h12}${mm ? ":" + pad2(mm) : ""} ${m % 1440 >= 720 ? "pm" : "am"}`; };
   const dayName = (iso) => (dayDiff(iso, todayIso) === 0 ? "Today" : fmtDay(iso, { weekday: "long" }));
@@ -5341,6 +5384,7 @@ class EclipticView extends obsidian.ItemView {
       onWorld: (w) => this.plugin.setWorld(w.id, true),
       onOpenHome: (at) => this.openLanding(HOME, at && { x: at.x, y: at.y, planet: true, r: this.scene ? this.scene.planetR() * 0.5 : 12 }),
       onNewFolder: () => this.plugin.newFolder(),
+      onMore: () => this.plugin.openSettings(),
       worlds: this.plugin.worldList(),
       sky: this.plugin.weatherSpec(),
     });
@@ -5375,23 +5419,29 @@ class EclipticView extends obsidian.ItemView {
   setLightNote(on) {
     if (this.lightNoteEl) { this.lightNoteEl.remove(); this.lightNoteEl = null; }
     if (this.scene) this.scene.footNote = !!on || !!this.themePromptEl; // the first-run block keeps clear of the line
-    if (!on) return;
+    if (!on) { this.syncFootNote(); return; }
     const n = this.lightNoteEl = this.contentEl.createDiv("ecl-lightnote");
     n.createSpan({ cls: "ecl-lightnote-text", text: "Ecliptic is dark only. To match it, set Settings → Appearance → Base color scheme to dark." });
     const x = n.createEl("button", { cls: "ecl-lightnote-x", text: "×", attr: { "aria-label": "Dismiss" } });
     x.addEventListener("click", () => { this.plugin.settings.lightNoteDismissed = true; this.plugin.save(); this.plugin.checkMode(); });
+    this.syncFootNote();
   }
+
+  // A page (Today, a folder) reserves a strip for the light-mode line or the theme question (styles.css), so neither sits over content.
+  syncFootNote() { this.contentEl.toggleClass("has-footnote", !!(this.lightNoteEl || this.themePromptEl)); }
 
   // The first-open question, in the same quiet strip as the light-mode line: serif italic, two plain text buttons.
   setThemePrompt(on) {
     if (this.themePromptEl) { this.themePromptEl.remove(); this.themePromptEl = null; }
     if (this.scene) this.scene.footNote = !!on || this.plugin.lightNoteWanted();
-    if (!on) return;
+    this.contentEl.toggleClass("has-themeprompt", !!on);
+    if (!on) { this.syncFootNote(); return; }
     const n = this.themePromptEl = this.contentEl.createDiv("ecl-lightnote ecl-themeprompt");
     n.setAttr("role", "group"); n.setAttr("aria-label", "Theme the whole app");
     n.createSpan({ cls: "ecl-lightnote-text", text: "Theme the whole app to match?" });
     const ask = (label, yes) => n.createEl("button", { cls: "ecl-themeprompt-btn", text: label }).addEventListener("click", () => this.plugin.answerTheme(yes));
     ask("Yes", true); ask("Not now", false);
+    this.syncFootNote();
   }
 
   refresh() {
@@ -5399,6 +5449,7 @@ class EclipticView extends obsidian.ItemView {
     this.scene.setWorlds(this.plugin.worldList());
     this.scene.setAmbient(this.plugin.ambient());
     this.scene.setSections(this.plugin.collect());
+    this.scene.moreN = this.plugin.hiddenFolders || 0;
     this.scene.setToday(this.plugin.today());
     Promise.all([this.plugin.taskBelt(), this.plugin.timeData().catch(() => null)]).then(([t, time]) => {
       if (!this.scene) return;
@@ -5812,6 +5863,7 @@ class EclipticView extends obsidian.ItemView {
   async onClose() {
     if (this.kbObs) { this.kbObs.disconnect(); this.kbObs = null; }
     if (this.todayRO) { this.todayRO.disconnect(); this.todayRO = null; }
+    if (this.todayTimer) { window.clearInterval(this.todayTimer); this.todayTimer = null; }
     cancelAnimationFrame(this.dotRaf);
     if (this.scene) this.scene.destroy();
     this.scene = null;
@@ -5850,7 +5902,8 @@ function taskTitle(raw) {
 // (Named taskDue, not dueIn: dueIn(iso, today) is the folder pages' "in 2 days" helper.)
 function taskDue(raw) {
   const s = noCode(raw), m = s.match(/📅\s*(\d{4}-\d{2}-\d{2})/u) || s.match(/\[\s*due\s*::\s*(\d{4}-\d{2}-\d{2})(?:[T ][\d:]+)?\s*\]/i) || s.match(/\(\s*due\s*::\s*(\d{4}-\d{2}-\d{2})(?:[T ][\d:]+)?\s*\)/i);
-  return m ? m[1] : null;
+  // A typo like 2026-02-30 or 0000-00-00 would roll over into a believable overdue date; treat it as undated instead.
+  return m && isoDay(dayDate(m[1])) === m[1] ? m[1] : null;
 }
 // An open box whose text starts struck through (~~like this~~) is finished or dropped, not open.
 function isStruck(raw) { return /^\s*[-*+]\s+\[ \]\s*~~/.test(String(raw)); }
@@ -6434,6 +6487,8 @@ class EclipticPlugin extends obsidian.Plugin {
     const on = this.lightNoteWanted();
     this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((l) => l.view && l.view.setLightNote && l.view.setLightNote(on));
   }
+  // Settings, on the Ecliptic tab (where the folder list is).
+  openSettings() { try { this.app.setting.open(); this.app.setting.openTabById(this.manifest.id); } catch (e) { new obsidian.Notice("Open Settings, then Ecliptic"); } }
   // First run, "New folder": make a folder through the vault API and put a first note in it, because a folder only becomes a moon once it holds a note.
   async newFolder() {
     const v = this.app.vault;
@@ -6540,6 +6595,7 @@ class EclipticPlugin extends obsidian.Plugin {
     const shown = this.candidates().filter((c) => this.isShown(c.folder.name));
     shown.sort((a, b) => Math.max(...b.notes.map((f) => f.stat.mtime)) - Math.max(...a.notes.map((f) => f.stat.mtime)));
     const picked = shown.slice(0, Math.max(1, this.settings.maxSections | 0));
+    this.hiddenFolders = shown.length - picked.length;
     picked.sort((a, b) => a.folder.name.localeCompare(b.folder.name, undefined, { numeric: true }));
     const t0 = this.nowDate().setHours(0, 0, 0, 0);
     return picked.map(({ folder, notes: all }) => {
@@ -6872,7 +6928,7 @@ class EclipticPlugin extends obsidian.Plugin {
     const belt = s.showTasks ? await this.taskBelt() : { open: [], doneItems: [] };
     const folderOf = (p) => { const i = p.lastIndexOf("/"); return i > 0 ? this.plain(p.slice(0, i).split("/").pop()) : ""; };
     const open = (belt.open || []).slice().sort((a, b) => (b.overdue ? 1 : 0) - (a.overdue ? 1 : 0)).slice(0, 200)
-      .map((t) => ({ title: t.title, path: t.path, line: t.line, overdue: !!t.overdue, done: false, folder: folderOf(t.path), dueIso: t.due || "", due: t.due ? fmtDay(t.due, { day: "numeric", month: "short" }) : "" }));
+      .map((t) => ({ title: t.title, path: t.path, line: t.line, overdue: !!t.overdue, done: false, folder: folderOf(t.path), dueIso: t.due || "", due: t.due ? dueDay(t.due, isoDay(now)) : "" }));
     // The week (Monday to Sunday) for the calendar under the moon: its days, the timed entries (shifts), and what falls due.
     const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7)), todayIso = isoDay(now);
     const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -7424,7 +7480,7 @@ class EclipticPlugin extends obsidian.Plugin {
     for (const f of files) {
       const e = this.taskIdx.get(f.path);
       if (!e) continue;
-      for (const t of e.open) out.push({ title: t.title, path: f.path, line: t.line, dueIso: t.due, due: t.due ? fmtDay(t.due, { day: "numeric", month: "short" }) : "", overdue: !!t.due && t.due < today, mtime: e.mtime });
+      for (const t of e.open) out.push({ title: t.title, path: f.path, line: t.line, dueIso: t.due, due: t.due ? dueDay(t.due, today) : "", overdue: !!t.due && t.due < today, mtime: e.mtime });
     }
     out.sort((a, b) => (b.overdue - a.overdue) || (a.dueIso && b.dueIso ? (a.dueIso < b.dueIso ? -1 : a.dueIso > b.dueIso ? 1 : 0) : a.dueIso ? -1 : b.dueIso ? 1 : 0) || b.mtime - a.mtime);
     return out;
